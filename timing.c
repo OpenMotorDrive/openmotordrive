@@ -34,6 +34,10 @@ uint32_t micros(void) {
     return ms*1000UL + (counts_per_ms-counter)/counts_per_us;
 }
 
+void usleep(uint32_t delay) {
+    uint32_t tbegin = micros();
+    while (micros()-tbegin < delay);
+}
 
 void sys_tick_handler(void)
 {
