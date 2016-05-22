@@ -52,9 +52,6 @@ void svgen(float alpha, float beta, float* a, float* b, float* c)
             (*b) = (*a)-Z;
             break;
     }
-    (*a) = constrain_float((*a),0.0f,1.0f);
-    (*b) = constrain_float((*b),0.0f,1.0f);
-    (*c) = constrain_float((*c),0.0f,1.0f);
 }
 
 float constrain_float(float val, float min_val, float max_val)

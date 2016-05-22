@@ -26,6 +26,12 @@ main.elf main.map: main.o init.o pwm.o timing.o helpers.o encoder.o drv.o
 %.o: %.c pre-build
 	arm-none-eabi-gcc $(CFLAGS) $(ARCH_FLAGS) -c $<
 
+main.bin: main.elf
+	arm-none-eabi-objcopy -O binary main.elf main.bin
+
+upload: main.bin
+	st-flash write main.bin 0x8000000
+
 clean:
 	+make -C libopencm3 clean
-	rm -f *.d *.o *.elf *.map
+	rm -f *.d *.o *.elf *.map *.bin

@@ -19,6 +19,7 @@ void pwm_init(void)
     timer_enable_oc_output(TIM1, TIM_OC3);
     timer_enable_break_main_output(TIM1);
     timer_set_period(TIM1, 1024);
+    TIM1_CR2 |= 0b0011 << 20; // MMS2 "compare pulse"
     timer_enable_counter(TIM1);
 }
 

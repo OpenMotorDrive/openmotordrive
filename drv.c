@@ -17,13 +17,10 @@ void drv_init(void)
     drv_write_register_bits(0x5,0,3,0b1011); // high-side gate driver peak source current = 1.0A
     drv_write_register_bits(0x6,4,7,0b1010); // low-side gate driver peak sink current = 1.0A
     drv_write_register_bits(0x6,0,3,0b1011); // low-side gate driver peak source current = 1.0A
+    drv_write_register_bits(0xA,0,5,0b111111); // all CS amplifier gains = 80
+    drv_write_register_bits(0xA,6,7,0b00); // current shunt blanking time 00=0us 01=0.5us 10=2.5us 11=10us
+    drv_write_register_bits(0xC,3,7,0b11101); // VDS comparator threshold 1.892V
 
-    //     drv_write_register_bits(0x9,9,9,0b1); // PVDD_UVLO2 fault disabled
-    //     drv_write_register_bits(0x9,8,8,0b1); // gate drive fault disabled
-    //     drv_write_register_bits(0x9,4,4,0b1); // SNS overcurrent fault disabled
-    //     drv_write_register_bits(0x9,2,2,0b0); // device awake
-    //     drv_write_register_bits(0xB,2,2,0b1); // VREG undervoltage fault disabled
-    //     drv_write_register_bits(0xC,0,2,0b010); // VDS protection disabled
     drv_write_register_bits(0x9,1,1,0b1); // clear faults
 }
 
