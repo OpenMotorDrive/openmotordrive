@@ -18,49 +18,62 @@
 #include "pwm.h"
 #include "encoder.h"
 #include "helpers.h"
+#include "adc.h"
 #include <math.h>
 #include <libopencm3/stm32/usart.h>
 #include <stdio.h>
-
-static volatile uint32_t system_millis;
+#include <libopencm3/stm32/adc.h>
 
 int main(void) {
+    int32_t adc_cal = 0;
+    char buf[30];
+    int n;
+    uint8_t i;
+
     clock_init();
     timing_init();
     usart_init();
     spi_init();
     drv_init();
     pwm_init();
+    adc_init();
+    usleep(1000000);
 
+    drv_write_register_bits(0xA, 8, 10, 0b111UL);
+    for(i=0; i<10; i++) {
+        usleep(1000);
+        adc_cal += adc_get();
+    }
+    adc_cal /= 10;
+    drv_write_register_bits(0xA, 8, 10, 0b000UL);
+
+    float cal_angle = -10.0f*M_PI/180.0f;
     while(1) {
-        float angle_rad = read_encoder_rad();
+        float angle_rad = read_encoder_rad()*7.0f-cal_angle;
         float a=0.0f,b=0.0f,c=0.0f;
-        float freq = 5.0f;
-        float phase = freq*2.0f*M_PI*micros()*1e-6f;
-        float alpha = sinf(phase);
-        float beta = cosf(phase);
+        float phase = angle_rad+90.0f*M_PI/180.0f;
+        float alpha = .25f*sinf(phase);
+        float beta = .25f*cosf(phase);
+
+        if ((millis()/1000) % 2 == 0) {
+            alpha = beta = 0;
+        }
         svgen(alpha, beta, &a, &b, &c);
 
-        /*char buf[20];
-        int n;
-        n = sprintf(buf, "%.3f %.3f %.3f\n", a,b,c);
-        uint8_t i;
-        for(i=0; i<n; i++) {
-            usart_send_blocking(USART1, buf[i]);
-        }*/
-
-        a = constrain_float(a,0.0f,1.0f);
-        b = constrain_float(b,0.0f,1.0f);
-        c = constrain_float(c,0.0f,1.0f);
+        a = constrain_float(a, 0.0f, 1.0f);
+        b = constrain_float(b, 0.0f, 1.0f);
+        c = constrain_float(c, 0.0f, 1.0f);
 
         set_pwm_duty(TIM_OC1, a);
         set_pwm_duty(TIM_OC2, b);
         set_pwm_duty(TIM_OC3, c);
 
+        n = sprintf(buf, "%d\n", ((int32_t)adc_get())-adc_cal);
+        for(i=0; i<n; i++) {
+            usart_send_blocking(USART1, buf[i]);
+        }
 
-        drv_print_register(0x1);
-        drv_print_register(0x2);
-        drv_print_register(0x3);
+        usleep(1000);
     }
 
     return 0;
