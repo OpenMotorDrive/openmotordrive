@@ -51,9 +51,17 @@ static void get_phase_currents(float* ia, float* ib, float* ic)
     *ic = (csa_v_get(1)-csa_cal[1])/(G*R);
 }
 
+static void get_phase_volts(float* va, float* vb, float* vc)
+{
+    float ratio = 18.0f;
+    *va = phase_v_get(0)*ratio;
+    *vb = phase_v_get(2)*ratio;
+    *vc = phase_v_get(1)*ratio;
+}
+
 int main(void) {
 
-    char buf[50];
+    char buf[100];
     int n;
     uint8_t i;
 
@@ -77,15 +85,21 @@ int main(void) {
     float vq_integrator = 0.0f;
 
     while(1) {
-        float vbatt = vsense_v_get()*20.0f;
+        float ia_m, ib_m, ic_m, id_m, iq_m, va_m, vb_m, vc_m, a, b, c;
 
+        // retrieve ADC measurements
+        float vbatt = vsense_v_get()*20.0f;
+        get_phase_currents(&ia_m, &ib_m, &ic_m);
+        get_phase_volts(&va_m, &vb_m, &vc_m);
+
+        /*
+        // retrieve encoder measurement
         float d_axis_angle_rad = fmodf(read_encoder_rad()*7.0f+cal_angle, 2.0f*M_PI);
         if (d_axis_angle_rad < 0) {
             d_axis_angle_rad += 2.0f*M_PI;
         }
-        float ia, ib, ic, id, iq, a, b, c;
-        get_phase_currents(&ia, &ib, &ic);
-        dqo_transform(d_axis_angle_rad, ia,ib,ic, &id,&iq,NULL);
+
+        dqo_transform(d_axis_angle_rad, ia_m,ib_m,ic_m, &id,&iq,NULL);
 
         float vd_err = (id_ref-id);
         float vq_err = (iq_ref-iq);
@@ -101,21 +115,22 @@ int main(void) {
 
         float alpha = vd*cosf(d_axis_angle_rad) - vq*sin(d_axis_angle_rad);
         float beta = vq*cos(d_axis_angle_rad) + vd*sin(d_axis_angle_rad);
+        */
 
-        svgen(alpha, beta, &a, &b, &c);
+        svgen(0.33f*cosf(micros()*1.0e-6), 0.33f*sinf(micros()*1.0e-6), &a, &b, &c);
 
         set_pwm_duty(0, a);
         set_pwm_duty(2, b);
         set_pwm_duty(1, c);
 
-        /*if (millis()-last_print_t > 50) {
+        if (millis()-last_print_t > 100) {
             last_print_t = millis();
 
-            n = sprintf(buf, "%.2f %.2f %.2f\n", id,iq, d_axis_angle_rad*180.0f/M_PI);
+            n = sprintf(buf, "ia =% .2f ib =% .2f ic =% .2f va =% .2f vb =% .2f vc =% .2f vbatt =% .2f\n", ia_m, ib_m, ic_m, va_m, vb_m, vc_m, vbatt);
             for(i=0; i<n; i++) {
                 usart_send_blocking(USART1, buf[i]);
             }
-        }*/
+        }
     }
 
     return 0;

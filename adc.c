@@ -22,7 +22,7 @@ void adc_init(void)
     rcc_periph_clock_enable(RCC_GPIOA);
     rcc_periph_clock_enable(RCC_DMA1);
 
-    gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO0|GPIO1|GPIO2|GPIO3);
+    gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO0|GPIO1|GPIO2|GPIO3|GPIO4|GPIO6|GPIO7);
 
     // set ADC12 clock to AHB clock
     ADC12_CCR |= 0b01UL<<16;
@@ -86,8 +86,8 @@ void adc_init(void)
     };
 
     // set up DMA
-    DMA_CPAR(DMA1,DMA_CHANNEL1) = &ADC_DR(ADC1);
-    DMA_CMAR(DMA1,DMA_CHANNEL1) = &(adcbuf[0]);
+    DMA_CPAR(DMA1,DMA_CHANNEL1) = (uint32_t)&ADC_DR(ADC1);
+    DMA_CMAR(DMA1,DMA_CHANNEL1) = (uint32_t)&(adcbuf[0]);
     DMA_CNDTR(DMA1,DMA_CHANNEL1) = NUM_CONVERSIONS; // N transfers
 
     DMA_CCR(DMA1,DMA_CHANNEL1) |= 0b11UL<<12; // PL very high
@@ -116,14 +116,14 @@ void dma1_channel1_isr(void)
     DMA_IFCR(DMA1) |= 1UL<<1; // clear interrupt flag
 }
 
-void wait_for_adc_sample(void)
-{
-
-}
-
 float csa_v_get(uint8_t phase)
 {
     return csa_v[phase];
+}
+
+float phase_v_get(uint8_t phase)
+{
+    return phase_v[phase];
 }
 
 float vsense_v_get(void)
