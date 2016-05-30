@@ -60,12 +60,8 @@ static void get_phase_volts(float* va, float* vb, float* vc)
     *vc = phase_v_get(1)*ratio;
 }
 
-int main(void) {
-
-    char buf[100];
-    int n;
-    uint8_t i;
-
+int main(void)
+{
     clock_init();
     timing_init();
     serial_init();
@@ -123,10 +119,10 @@ int main(void) {
         if (millis()-last_print_t > 100) {
             last_print_t = millis();
 
+            char buf[100];
+            int n;
             n = sprintf(buf, "ia =% .2f ib =% .2f ic =% .2f va =% .2f vb =% .2f vc =% .2f vbatt =% .2f\n", ia_m, ib_m, ic_m, va_m, vb_m, vc_m, vbatt);
-            for(i=0; i<n; i++) {
-                usart_send_blocking(USART1, buf[i]);
-            }
+            serial_send(n, buf);
         }
     }
 
