@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 void adc_init(void);
-uint16_t adc_get(void);
+float csa_v_get(uint8_t phase);
+float vsense_v_get(void);
 
 #endif // ADC_H

@@ -1,18 +1,39 @@
 #include "adc.h"
 #include "timing.h"
+#include <string.h>
+#include <stdbool.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/adc.h>
+#include <libopencm3/cm3/nvic.h>
+#include <libopencm3/stm32/usart.h>
+#include <libopencm3/stm32/dma.h>
+
+#define NUM_CONVERSIONS 7UL
+
+static volatile float phase_v[3];
+static volatile float csa_v[3];
+static volatile float vsense_v;
+static volatile uint16_t adcbuf[NUM_CONVERSIONS];
 
 void adc_init(void)
 {
     rcc_periph_clock_enable(RCC_ADC12);
     rcc_periph_clock_enable(RCC_GPIOA);
+    rcc_periph_clock_enable(RCC_DMA1);
 
-    gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO0|GPIO1|GPIO2);
+    gpio_mode_setup(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO0|GPIO1|GPIO2|GPIO3);
 
     // set ADC12 clock to AHB clock
-    ADC12_CCR |= (0b01UL<<16);
+    ADC12_CCR |= 0b01UL<<16;
+
+    // sample vsense for 181.5 cycles
+    ADC_SMPR1(ADC1) |= 0b110UL << 12;
+
+    // enable discontinuous mode
+    ADC_CFGR1(ADC1) |= 1UL<<16;
+    // discontinuous group size 3
+    ADC_CFGR1(ADC1) |= (3UL-1)<<17;
 
     // right-aligned data
     ADC_CFGR1(ADC1) &= ~(1UL<<5);
@@ -21,25 +42,28 @@ void adc_init(void)
     ADC_CFGR1(ADC1) |= 0b1010UL<<6;
 
     // EXTEN
-    ADC_CFGR1(ADC1) |= 0b01<<10;
+    ADC_CFGR1(ADC1) |= 0b01UL<<10;
 
-    // set CH1 sample time (100 == 19.5 ADC clock cycles)
-    ADC_SMPR1(ADC1) |= 0b100UL<<3;
-
-    // set CH2 sample time (100 == 19.5 ADC clock cycles)
-    ADC_SMPR1(ADC1) |= 0b100UL<<6;
-
-    // set CH3 sample time (100 == 19.5 ADC clock cycles)
-    ADC_SMPR1(ADC1) |= 0b100UL<<9;
+    // single conversion mode
     adc_set_single_conversion_mode(ADC1);
 
     // number of conversions in sequence
-    ADC_SQR1(ADC1) |= 1UL<<0;
+    ADC_SQR1(ADC1) |= (NUM_CONVERSIONS-1)<<0;
 
-    // sequence channels
-    ADC_SQR1(ADC1) |= 1UL<<6;
-    //ADC_SQR1(ADC1) |= 2UL<<12; // second channel
-    //ADC_SQR1(ADC1) |= 3UL<<18; // third channel
+    // discontinuous group 1
+    ADC_SQR1(ADC1) |= 1UL<<6; // phase current A
+    ADC_SQR1(ADC1) |= 2UL<<12; // phase current B
+    ADC_SQR1(ADC1) |= 3UL<<18; // phase current C
+
+    // discontinuous group 2
+    ADC_SQR1(ADC1) |= 5UL<<24; // phase voltage A
+    ADC_SQR2(ADC1) |= 10UL<<0; // phase voltage B
+    ADC_SQR2(ADC1) |= 15UL<<6; // phase voltage C
+
+
+    // discontinuous group 3
+    ADC_SQR2(ADC1) |= 4UL<<12; // Vsense
+
 
     // set ADVREGEN to 00 (intermediate)
     ADC_CR(ADC1) &= ~(0b11UL<<28);
@@ -58,13 +82,51 @@ void adc_init(void)
 
     // set ADEN to 1 until ADRDY is 1
     while((ADC_ISR(ADC1) & (1UL<<0)) == 0) {
-        ADC_CR(ADC1) |= (1UL<<0);
+        ADC_CR(ADC1) |= 1UL<<0;
     };
 
-    ADC_CR(ADC1) |= (1UL<<2); // ADSTART=1
+    // set up DMA
+    DMA_CPAR(DMA1,DMA_CHANNEL1) = &ADC_DR(ADC1);
+    DMA_CMAR(DMA1,DMA_CHANNEL1) = &(adcbuf[0]);
+    DMA_CNDTR(DMA1,DMA_CHANNEL1) = NUM_CONVERSIONS; // N transfers
+
+    DMA_CCR(DMA1,DMA_CHANNEL1) |= 0b11UL<<12; // PL very high
+    DMA_CCR(DMA1,DMA_CHANNEL1) |= 0b01UL<<10; // MSIZE 16 bits
+    DMA_CCR(DMA1,DMA_CHANNEL1) |= 0b10UL<<8; // PSIZE 32 bits
+    DMA_CCR(DMA1,DMA_CHANNEL1) |= 1UL<<7; // MINC=1
+    DMA_CCR(DMA1,DMA_CHANNEL1) |= 1UL<<5; // CIRC=1
+    DMA_CCR(DMA1,DMA_CHANNEL1) |= 1UL<<1; // TCIE=1
+    DMA_CCR(DMA1,DMA_CHANNEL1) |= 1UL<<0; // EN=1
+    nvic_enable_irq(NVIC_DMA1_CHANNEL1_IRQ);
+    ADC_CFGR1(ADC1) |= 1UL<<0; // DMAEN=1
+    ADC_CFGR1(ADC1) |= 1UL<<1; // DMACFG=1
+    ADC_CR(ADC1) |= 1UL<<2; // ADSTART=1
 }
 
-uint16_t adc_get(void)
+void dma1_channel1_isr(void)
 {
-    return ADC_DR(ADC1);
+    csa_v[0] = adcbuf[0]*3.3f/4096.0f;
+    csa_v[1] = adcbuf[1]*3.3f/4096.0f;
+    csa_v[2] = adcbuf[2]*3.3f/4096.0f;
+    phase_v[0] = adcbuf[3]*3.3f/4096.0f;
+    phase_v[1] = adcbuf[4]*3.3f/4096.0f;
+    phase_v[2] = adcbuf[5]*3.3f/4096.0f;
+    vsense_v = adcbuf[6]*3.3f/4096.0f;
+
+    DMA_IFCR(DMA1) |= 1UL<<1; // clear interrupt flag
+}
+
+void wait_for_adc_sample(void)
+{
+
+}
+
+float csa_v_get(uint8_t phase)
+{
+    return csa_v[phase];
+}
+
+float vsense_v_get(void)
+{
+    return vsense_v;
 }
