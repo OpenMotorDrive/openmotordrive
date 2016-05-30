@@ -1,7 +1,6 @@
 #include "init.h"
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
-#include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/flash.h>
 
@@ -32,23 +31,6 @@ void clock_init(void)
     flash_set_ws(FLASH_ACR_PRFTBE | FLASH_ACR_LATENCY_2WS);
     rcc_set_sysclk_source(RCC_CFGR_SW_PLL);
     rcc_wait_for_sysclk_status(RCC_PLL);
-}
-
-void usart_init(void)
-{
-    rcc_periph_clock_enable(RCC_GPIOB);
-    rcc_periph_clock_enable(RCC_USART1);
-    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO6|GPIO7);
-    gpio_set_af(GPIOB, GPIO_AF7, GPIO6|GPIO7);
-    const uint32_t baud = 115200;
-    uint32_t clock = rcc_apb1_frequency;
-    USART_BRR(USART1) = ((2 * clock) + baud) / (2 * baud);
-    usart_set_databits(USART1, 8);
-    usart_set_stopbits(USART1, USART_STOPBITS_1);
-    usart_set_mode(USART1, USART_MODE_TX_RX);
-    usart_set_parity(USART1, USART_PARITY_NONE);
-    usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
-    usart_enable(USART1);
 }
 
 void spi_init(void)

@@ -9,12 +9,13 @@
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/dma.h>
 
-#define NUM_CONVERSIONS 7UL
+#define NUM_CONVERSIONS 9UL
 
 static volatile float phase_v[3];
 static volatile float csa_v[3];
 static volatile float vsense_v;
 static volatile uint16_t adcbuf[NUM_CONVERSIONS];
+static volatile uint8_t smpidx;
 
 void adc_init(void)
 {
@@ -27,8 +28,8 @@ void adc_init(void)
     // set ADC12 clock to AHB clock
     ADC12_CCR |= 0b01UL<<16;
 
-    // sample vsense for 181.5 cycles
-    ADC_SMPR1(ADC1) |= 0b110UL << 12;
+    // sample vsense for 19.5 cycles
+    ADC_SMPR1(ADC1) |= 0b100UL << 12;
 
     // enable discontinuous mode
     ADC_CFGR1(ADC1) |= 1UL<<16;
@@ -51,18 +52,19 @@ void adc_init(void)
     ADC_SQR1(ADC1) |= (NUM_CONVERSIONS-1)<<0;
 
     // discontinuous group 1
-    ADC_SQR1(ADC1) |= 1UL<<6; // phase current A
-    ADC_SQR1(ADC1) |= 2UL<<12; // phase current B
-    ADC_SQR1(ADC1) |= 3UL<<18; // phase current C
+    ADC_SQR1(ADC1) |= 4UL<<6; // Vsense
+    ADC_SQR1(ADC1) |= 4UL<<12; // Vsense
+    ADC_SQR1(ADC1) |= 4UL<<18; // Vsense
 
     // discontinuous group 2
     ADC_SQR1(ADC1) |= 5UL<<24; // phase voltage A
     ADC_SQR2(ADC1) |= 10UL<<0; // phase voltage B
     ADC_SQR2(ADC1) |= 15UL<<6; // phase voltage C
 
-
     // discontinuous group 3
-    ADC_SQR2(ADC1) |= 4UL<<12; // Vsense
+    ADC_SQR2(ADC1) |= 1UL<<12; // phase current A
+    ADC_SQR2(ADC1) |= 2UL<<18; // phase current B
+    ADC_SQR2(ADC1) |= 3UL<<24; // phase current C
 
 
     // set ADVREGEN to 00 (intermediate)
@@ -105,15 +107,25 @@ void adc_init(void)
 
 void dma1_channel1_isr(void)
 {
-    csa_v[0] = adcbuf[0]*3.3f/4096.0f;
-    csa_v[1] = adcbuf[1]*3.3f/4096.0f;
-    csa_v[2] = adcbuf[2]*3.3f/4096.0f;
+    csa_v[0] = adcbuf[6]*3.3f/4096.0f;
+    csa_v[1] = adcbuf[7]*3.3f/4096.0f;
+    csa_v[2] = adcbuf[8]*3.3f/4096.0f;
     phase_v[0] = adcbuf[3]*3.3f/4096.0f;
     phase_v[1] = adcbuf[4]*3.3f/4096.0f;
     phase_v[2] = adcbuf[5]*3.3f/4096.0f;
-    vsense_v = adcbuf[6]*3.3f/4096.0f;
+    vsense_v = 0.0f;
+    uint8_t i;
+    for (i=0; i<3; i++) vsense_v += adcbuf[i];
+    vsense_v *= 3.3f/4096.0f/3.0f;
 
     DMA_IFCR(DMA1) |= 1UL<<1; // clear interrupt flag
+    smpidx++;
+}
+
+void wait_for_adc_sample(void)
+{
+    uint8_t smpidx_prev = smpidx;
+    while(smpidx==smpidx_prev);
 }
 
 float csa_v_get(uint8_t phase)

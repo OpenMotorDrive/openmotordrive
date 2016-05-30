@@ -19,6 +19,7 @@
 #include "encoder.h"
 #include "helpers.h"
 #include "adc.h"
+#include "serial.h"
 #include <math.h>
 #include <libopencm3/stm32/usart.h>
 #include <stdio.h>
@@ -67,7 +68,7 @@ int main(void) {
 
     clock_init();
     timing_init();
-    usart_init();
+    serial_init();
     spi_init();
     drv_init();
     pwm_init();
@@ -81,28 +82,25 @@ int main(void) {
 
     uint32_t last_print_t = 0;
 
-    float vd_integrator = 0.0f;
-    float vq_integrator = 0.0f;
-
     while(1) {
         float ia_m, ib_m, ic_m, id_m, iq_m, va_m, vb_m, vc_m, a, b, c;
 
         // retrieve ADC measurements
+        wait_for_adc_sample();
         float vbatt = vsense_v_get()*20.0f;
         get_phase_currents(&ia_m, &ib_m, &ic_m);
         get_phase_volts(&va_m, &vb_m, &vc_m);
 
-        /*
         // retrieve encoder measurement
         float d_axis_angle_rad = fmodf(read_encoder_rad()*7.0f+cal_angle, 2.0f*M_PI);
         if (d_axis_angle_rad < 0) {
             d_axis_angle_rad += 2.0f*M_PI;
         }
 
-        dqo_transform(d_axis_angle_rad, ia_m,ib_m,ic_m, &id,&iq,NULL);
+        dqo_transform(d_axis_angle_rad, ia_m,ib_m,ic_m, &id_m,&iq_m,NULL);
 
-        float vd_err = (id_ref-id);
-        float vq_err = (iq_ref-iq);
+        float vd_err = (id_ref-id_m);
+        float vq_err = (iq_ref-iq_m);
 
         float vd = vd_err*2.0f;
         float vq = vq_err*2.0f;
@@ -115,9 +113,8 @@ int main(void) {
 
         float alpha = vd*cosf(d_axis_angle_rad) - vq*sin(d_axis_angle_rad);
         float beta = vq*cos(d_axis_angle_rad) + vd*sin(d_axis_angle_rad);
-        */
 
-        svgen(0.33f*cosf(micros()*1.0e-6), 0.33f*sinf(micros()*1.0e-6), &a, &b, &c);
+        svgen(alpha, beta, &a, &b, &c);
 
         set_pwm_duty(0, a);
         set_pwm_duty(2, b);
