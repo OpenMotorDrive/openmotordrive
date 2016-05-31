@@ -9,9 +9,8 @@
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/dma.h>
 
-#define NUM_CONVERSIONS 9UL
+#define NUM_CONVERSIONS 6UL
 
-static volatile float phase_v[3];
 static volatile float csa_v[3];
 static volatile float vsense_v;
 static volatile uint16_t adcbuf[NUM_CONVERSIONS];
@@ -57,14 +56,9 @@ void adc_init(void)
     ADC_SQR1(ADC1) |= 4UL<<18; // Vsense
 
     // discontinuous group 2
-    ADC_SQR1(ADC1) |= 5UL<<24; // phase voltage A
-    ADC_SQR2(ADC1) |= 10UL<<0; // phase voltage B
-    ADC_SQR2(ADC1) |= 15UL<<6; // phase voltage C
-
-    // discontinuous group 3
-    ADC_SQR2(ADC1) |= 1UL<<12; // phase current A
-    ADC_SQR2(ADC1) |= 2UL<<18; // phase current B
-    ADC_SQR2(ADC1) |= 3UL<<24; // phase current C
+    ADC_SQR1(ADC1) |= 1UL<<24; // phase current A
+    ADC_SQR2(ADC1) |= 2UL<<0; // phase current B
+    ADC_SQR2(ADC1) |= 3UL<<6; // phase current C
 
 
     // set ADVREGEN to 00 (intermediate)
@@ -107,12 +101,9 @@ void adc_init(void)
 
 void dma1_channel1_isr(void)
 {
-    csa_v[0] = adcbuf[6]*3.3f/4096.0f;
-    csa_v[1] = adcbuf[7]*3.3f/4096.0f;
-    csa_v[2] = adcbuf[8]*3.3f/4096.0f;
-    phase_v[0] = adcbuf[3]*3.3f/4096.0f;
-    phase_v[1] = adcbuf[4]*3.3f/4096.0f;
-    phase_v[2] = adcbuf[5]*3.3f/4096.0f;
+    csa_v[0] = adcbuf[3]*3.3f/4096.0f;
+    csa_v[1] = adcbuf[4]*3.3f/4096.0f;
+    csa_v[2] = adcbuf[5]*3.3f/4096.0f;
     vsense_v = 0.0f;
     uint8_t i;
     for (i=0; i<3; i++) vsense_v += adcbuf[i];
@@ -133,12 +124,12 @@ float csa_v_get(uint8_t phase)
     return csa_v[phase];
 }
 
-float phase_v_get(uint8_t phase)
-{
-    return phase_v[phase];
-}
-
 float vsense_v_get(void)
 {
     return vsense_v;
+}
+
+uint8_t get_adc_smpidx(void)
+{
+    return smpidx;
 }

@@ -64,18 +64,18 @@ void svgen(float alpha, float beta, float* a, float* b, float* c)
 
 void dqo_transform(float theta, float a, float b, float c, float* d, float* q, float* o)
 {
-    *d = 0.816496580927726f*a*cosf(theta) + 0.816496580927726f*b*cosf(theta - 0.666666666666667f*M_PI) + 0.816496580927726f*c*cosf(theta + 0.666666666666667f*M_PI);
-    *q = -0.816496580927726f*a*sinf(theta) - 0.816496580927726f*b*sinf(theta - 0.666666666666667f*M_PI) - 0.816496580927726f*c*sinf(theta + 0.666666666666667f*M_PI);
+    *d = 0.816496580927726f*a*cosf(theta) + 0.816496580927726f*b*cosf(theta - 0.666666666666667f*M_PI_F) + 0.816496580927726f*c*cosf(theta + 0.666666666666667f*M_PI_F);
+    *q = -0.816496580927726f*a*sinf(theta) - 0.816496580927726f*b*sinf(theta - 0.666666666666667f*M_PI_F) - 0.816496580927726f*c*sinf(theta + 0.666666666666667f*M_PI_F);
     if (o != NULL) {
-        *o = 0.408248290463863f*sqrtf(2)*a + 0.408248290463863f*sqrtf(2)*b + 0.408248290463863f*sqrtf(2)*c;
+        *o = 0.408248290463863f*M_SQRT2_F*a + 0.408248290463863f*M_SQRT2_F*b + 0.408248290463863f*M_SQRT2_F*c;
     }
 }
 
 void dqo_transform_inverse(float theta, float d, float q, float o, float* a, float* b, float* c)
 {
-    *a = 0.816496580927726f*d*cosf(theta) + 0.408248290463863f*sqrtf(2)*o - 0.816496580927726f*q*sinf(theta);
-    *b = 0.816496580927726f*d*cosf(theta - 0.666666666666667f*M_PI) + 0.408248290463863f*sqrtf(2)*o - 0.816496580927726f*q*sinf(theta - 0.666666666666667f*M_PI);
-    *c = 0.816496580927726f*d*cosf(theta + 0.666666666666667f*M_PI) + 0.408248290463863f*sqrtf(2)*o - 0.816496580927726f*q*sinf(theta + 0.666666666666667f*M_PI);
+    *a = 0.816496580927726f*d*cosf(theta) + 0.408248290463863f*M_SQRT2_F*o - 0.816496580927726f*q*sinf(theta);
+    *b = 0.816496580927726f*d*cosf(theta - 0.666666666666667f*M_PI_F) + 0.408248290463863f*M_SQRT2_F*o - 0.816496580927726f*q*sinf(theta - 0.666666666666667f*M_PI_F);
+    *c = 0.816496580927726f*d*cosf(theta + 0.666666666666667f*M_PI_F) + 0.408248290463863f*M_SQRT2_F*o - 0.816496580927726f*q*sinf(theta + 0.666666666666667f*M_PI_F);
 }
 
 float constrain_float(float val, float min_val, float max_val)
@@ -87,4 +87,21 @@ float constrain_float(float val, float min_val, float max_val)
         return max_val;
     }
     return val;
+}
+
+float wrap_2pi(float val)
+{
+    val = fmodf(val, 2.0f*M_PI_F);
+    if (val < 0) {
+        val += 2.0f*M_PI_F;
+    }
+    return val;
+}
+
+float wrap_pi(float val){
+    val = fmod(val + M_PI_F,2.0f*M_PI_F);
+    if (val < 0) {
+        val += 2.0f*M_PI_F;
+    }
+    return val - M_PI_F;
 }
