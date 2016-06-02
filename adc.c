@@ -27,8 +27,13 @@ void adc_init(void)
     // set ADC12 clock to AHB clock
     ADC12_CCR |= 0b01UL<<16;
 
-    // sample vsense for 19.5 cycles
-    ADC_SMPR1(ADC1) |= 0b100UL << 12;
+    // set phase current sample time
+    ADC_SMPR1(ADC1) |= 0b011UL << 3; // SMP1 = 7.5 ADC clock cycles
+    ADC_SMPR1(ADC1) |= 0b011UL << 6; // SMP2 = 7.5 ADC clock cycles
+    ADC_SMPR1(ADC1) |= 0b011UL << 9; // SMP3 = 7.5 ADC clock cycles
+
+    // set vsense sample time
+    ADC_SMPR1(ADC1) |= 0b100UL << 12; // SMP4 = 19.5 ADC clock cycles
 
     // enable discontinuous mode
     ADC_CFGR1(ADC1) |= 1UL<<16;
