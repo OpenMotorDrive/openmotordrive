@@ -149,10 +149,11 @@ static void run_commutation(void)
 
     float a,b,c;
     svgen(alpha, beta, &a, &b, &c);
+    a -= (1.0f-max_duty)*0.5f;
+    b -= (1.0f-max_duty)*0.5f;
+    c -= (1.0f-max_duty)*0.5f;
 
-    set_pwm_duty(0, a-(1.0f-max_duty)*0.5f);
-    set_pwm_duty(2, b-(1.0f-max_duty)*0.5f);
-    set_pwm_duty(1, c-(1.0f-max_duty)*0.5f);
+    set_phase_duty(a, b, c);
 }
 
 int main(void)

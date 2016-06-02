@@ -4,6 +4,6 @@
 #include <stdint.h>
 
 void pwm_init(void);
-void set_pwm_duty(uint8_t phase, float duty);
+void set_phase_duty(float phaseA, float phaseB, float phaseC);
 
 #endif // PWM_H

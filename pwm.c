@@ -30,20 +30,12 @@ void pwm_init(void)
     timer_enable_counter(TIM1);
 }
 
-void set_pwm_duty(uint8_t phase, float duty)
+void set_phase_duty(float phaseA, float phaseB, float phaseC)
 {
-    duty = constrain_float(duty, 0.0f,1.0f);
-
-    switch(phase) {
-        case 0:
-            timer_set_oc_value(TIM1, TIM_OC1, ((TIM1_ARR-0.5f)*duty)+0.5f);
-            break;
-        case 1:
-            timer_set_oc_value(TIM1, TIM_OC2, ((TIM1_ARR-0.5f)*duty)+0.5f);
-            break;
-        case 2:
-            timer_set_oc_value(TIM1, TIM_OC3, ((TIM1_ARR-0.5f)*duty)+0.5f);
-            break;
-    }
-
+    phaseA = constrain_float(phaseA, 0.0f,1.0f);
+    timer_set_oc_value(TIM1, TIM_OC1, ((TIM1_ARR-0.5f)*phaseA)+0.5f);
+    phaseB = constrain_float(phaseB, 0.0f,1.0f);
+    timer_set_oc_value(TIM1, TIM_OC1, ((TIM1_ARR-0.5f)*phaseB)+0.5f);
+    phaseC = constrain_float(phaseC, 0.0f,1.0f);
+    timer_set_oc_value(TIM1, TIM_OC1, ((TIM1_ARR-0.5f)*phaseC)+0.5f);
 }
