@@ -171,9 +171,6 @@ int main(void)
     uint32_t last_print_t = 0;
     uint8_t prev_smpidx = 0;
 
-    encoder_write_register(0x3, 255);
-    encoder_write_register(0x5, 1U<<4);
-
     // main loop
     while(1) {
         // wait specified time for adc measurement
