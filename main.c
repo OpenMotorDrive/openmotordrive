@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <libopencm3/stm32/adc.h>
 
-static const float theta_offset = -200.0f*M_PI_F/180.0f/7.0f;
+static const float theta_offset = 0.0f*M_PI_F/180.0f/7.0f;
 static const float curr_KR = 9.0f;
 static const float curr_KP = 30.0f;
 static const float curr_KI = 10000.0f;
@@ -33,6 +33,7 @@ static const float vsense_div = 20.0f;
 static const float csa_G = 80.0f;
 static const float csa_R = 0.001f;
 static const float max_duty = 0.95f; // required for the current sense amplifiers to work
+static const uint8_t n_poles = 7;
 
 static float csa_cal[3] = {0,0,0};
 static float dt;
@@ -80,8 +81,8 @@ static void retrieve_measurements(void)
     get_phase_currents(&ia_m, &ib_m, &ic_m);
 
     // retrieve encoder measurement
-    phys_theta_m = wrap_2pi(encoder_read_rad()+theta_offset);
-    elec_theta_m = wrap_2pi(phys_theta_m*7.0f);
+    phys_theta_m = wrap_2pi(encoder_read_rad());
+    elec_theta_m = wrap_2pi(phys_theta_m*n_poles+theta_offset);
 
     if (prev_phys_theta_m_set) {
         const float tc = 0.02f;
@@ -143,6 +144,9 @@ static void run_commutation(void)
     float alpha = vd*cosf(elec_theta_m) - vq*sinf(elec_theta_m);
     float beta = vq*cosf(elec_theta_m) + vd*sinf(elec_theta_m);
 
+    alpha = 0.5*cosf(2.0f*M_PI_F*millis()*1e-3f);
+    beta = -0.5*sinf(2.0f*M_PI_F*millis()*1e-3f);
+
     float a,b,c;
     svgen(alpha, beta, &a, &b, &c);
 
@@ -166,6 +170,9 @@ int main(void)
     uint32_t last_t_us = 0;
     uint32_t last_print_t = 0;
     uint8_t prev_smpidx = 0;
+
+    encoder_write_register(0x3, 255);
+    encoder_write_register(0x5, 1U<<4);
 
     // main loop
     while(1) {
@@ -198,7 +205,7 @@ int main(void)
 
             char buf[256];
             int n;
-            n = sprintf(buf, "theta=% .2f omega =% .2f id =% .2f\n",phys_theta_m*180.0f/M_PI_F, phys_omega_m*180.0f/M_PI_F, id_m);
+            n = sprintf(buf, "% f,% f,% f,% f\n", phys_theta_m*180.0f/M_PI_F, elec_theta_m*180.0f/M_PI_F, wrap_2pi(2.0f*M_PI_F*millis()*1e-3f)*180.0f/M_PI_F, wrap_pi(elec_theta_m-wrap_2pi(2.0f*M_PI_F*millis()*1e-3f))*180.0f/M_PI_F);
             serial_send_dma(n, buf);
         }
     }

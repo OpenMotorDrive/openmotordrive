@@ -26,43 +26,45 @@ void drv_init(void)
 
 uint16_t drv_read_register(uint8_t reg)
 {
+    uint8_t i;
     spi_disable(SPI3);
     gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_PULLDOWN, GPIO3); // SCK
     spi_set_clock_polarity_0(SPI3);
+    spi_set_baudrate_prescaler(SPI3, SPI_CR1_BR_FPCLK_DIV_8); // 9MHz - datasheet says 100ns min clock period
     spi_enable(SPI3);
 
     uint16_t command = (1U<<15) | ((reg&0xFU)<<11);
 
     uint16_t ret;
-    usleep(2);
+    for(i=0;i<30;i++) __asm__("nop"); // min 400ns
     gpio_clear(GPIOB, GPIO0); // DRV CS down
-    usleep(2);
+    for(i=0;i<5;i++) __asm__("nop"); // min 50ns
     ret = spi_xfer(SPI3,command);
-    usleep(2);
+    for(i=0;i<5;i++) __asm__("nop"); // min 50ns
     gpio_set(GPIOB, GPIO0); // DRV CS up
-    usleep(2);
 
     return ret&0x3FFU;
 }
 
 void drv_write_register(uint8_t reg, uint16_t val)
 {
+    uint8_t i;
     val &= 0x3FFU;
 
     spi_disable(SPI3);
     gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_PULLUP, GPIO3); // SCK
     spi_set_clock_polarity_0(SPI3);
+    spi_set_baudrate_prescaler(SPI3, SPI_CR1_BR_FPCLK_DIV_8); // 9MHz - datasheet says 100ns min clock period
     spi_enable(SPI3);
 
     uint16_t command = ((reg&0xFU)<<11) | val;
 
-    usleep(2);
+    for(i=0;i<30;i++) __asm__("nop"); // min 400ns
     gpio_clear(GPIOB, GPIO0); // DRV CS down
-    usleep(2);
+    for(i=0;i<5;i++) __asm__("nop"); // min 50ns
     spi_xfer(SPI3,command);
-    usleep(2);
+    for(i=0;i<5;i++) __asm__("nop"); // min 50ns
     gpio_set(GPIOB, GPIO0); // DRV CS up
-    usleep(2);
 }
 
 void drv_write_register_bits(uint8_t reg, uint8_t rng_begin, uint8_t rng_end, uint16_t val)
