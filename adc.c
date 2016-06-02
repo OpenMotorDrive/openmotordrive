@@ -113,23 +113,25 @@ void dma1_channel1_isr(void)
     smpidx++;
 }
 
-void wait_for_adc_sample(void)
+void adc_wait_for_sample(void)
 {
     uint8_t smpidx_prev = smpidx;
     while(smpidx==smpidx_prev);
 }
 
-float csa_v_get(uint8_t phase)
+void adc_get_csa_v(float *phaseA, float *phaseB, float *phaseC)
 {
-    return csa_v[phase];
+    *phaseA = csa_v[0];
+    *phaseB = csa_v[1];
+    *phaseC = csa_v[2];
 }
 
-float vsense_v_get(void)
+float adc_get_vsense_v(void)
 {
     return vsense_v;
 }
 
-uint8_t get_adc_smpidx(void)
+uint8_t adc_get_smpidx(void)
 {
     return smpidx;
 }

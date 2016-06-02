@@ -19,7 +19,7 @@ all: main.elf pre-build
 pre-build:
 	+make -C libopencm3
 
-main.elf main.map: main.o init.o pwm.o timing.o helpers.o encoder.o drv.o adc.o serial.o
+main.elf main.map: main.o init.o pwm.o timing.o helpers.o encoder.o drv.o adc.o serial.o curr_pid.o motor.o
 	arm-none-eabi-gcc $(LDFLAGS) $(ARCH_FLAGS) $^ $(LDLIBS) -o $(BIN_NAME).elf
 
 

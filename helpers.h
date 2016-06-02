@@ -1,10 +1,13 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
+#include <math.h>
 #include <stdint.h>
 
 #define M_SQRT2_F ((float)M_SQRT2)
 #define M_PI_F ((float)M_PI)
+
+#define SQ(__X) (__X*__X)
 
 void svgen(float alpha, float beta, float* a, float* b, float* c);
 float constrain_float(float val, float min_val, float max_val);
