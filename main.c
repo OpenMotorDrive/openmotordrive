@@ -23,6 +23,10 @@
 #include "drv.h"
 #include "motor.h"
 
+static void delay_task(void) {
+    // will read UART and process commands here
+}
+
 int main(void)
 {
     uint32_t last_t_us = 0;
@@ -44,6 +48,7 @@ int main(void)
         uint8_t smpidx, d_smp;
         uint32_t t1_us = micros();
         do {
+            delay_task();
             smpidx = adc_get_smpidx();
             d_smp = smpidx-prev_smpidx;
         } while (d_smp < 3);

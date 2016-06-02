@@ -40,20 +40,6 @@ void serial_init(void)
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<4; // DIR=1 (read from memory)
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<7; // MINC=1
 
-    // set up DMA recv
-//     nvic_enable_irq(NVIC_USART1_EXTI25_IRQ);
-//     USART_CR1(USART1) |= 1UL<<6; // TCIE=1
-//     USART_CR3(USART1) |= 1UL<<6; // enable DMA for receive
-//     DMA_CPAR(DMA1,DMA_CHANNEL5) = (uint32_t)&USART_RDR(USART1);
-//     DMA_CMAR(DMA1,DMA_CHANNEL5) = (uint32_t)rxbuf;
-//     DMA_CCR(DMA1,DMA_CHANNEL5) |= 0b01UL<<12; // PL medium
-//     DMA_CCR(DMA1,DMA_CHANNEL5) |= 0b00UL<<10; // MSIZE 8 bits
-//     DMA_CCR(DMA1,DMA_CHANNEL5) |= 0b00UL<<8; // PSIZE 8 bits
-//     DMA_CCR(DMA1,DMA_CHANNEL5) |= 1UL<<7; // MINC=1
-//     DMA_CCR(DMA1,DMA_CHANNEL5) |= 1UL<<5; // CIRC=1
-//     DMA_CNDTR(DMA1,DMA_CHANNEL5) = RXBUF_LEN;
-//     DMA_CCR(DMA1,DMA_CHANNEL5) |= 1UL<<0; // EN=1
-
     usart_enable(USART1);
 }
 
@@ -71,8 +57,3 @@ bool serial_send_dma(uint16_t len, char* buf)
 
     return false;
 }
-
-// void usart1_exti25_isr(void)
-// {
-//
-// }

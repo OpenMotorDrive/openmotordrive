@@ -18,6 +18,7 @@ static const float curr_KI = 10000.0f;
 static const float vsense_div = 20.0f;
 static const float csa_G = 80.0f;
 static const float csa_R = 0.001f;
+// it takes approximately 50 timer clock cycles to sample the current sensors. PWM period is 2000 timer clock cycles
 static const float max_duty = 0.95f;
 
 static float csa_cal[3] = {0.0f, 0.0f, 0.0f}; // current sense amplifier calibration
