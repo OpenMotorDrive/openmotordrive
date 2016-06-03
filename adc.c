@@ -11,10 +11,11 @@
 
 #define NUM_CONVERSIONS 6UL
 
-static volatile float csa_v[3];
-static volatile float vsense_v;
+static volatile float csa_v[3] = {0,0,0};
+static volatile float vsense_v = 0.0f;
 static volatile uint16_t adcbuf[NUM_CONVERSIONS];
-static volatile uint8_t smpidx;
+static volatile uint8_t smpidx = 0;
+static volatile uint32_t smperr = 0;
 
 void adc_init(void)
 {
@@ -101,21 +102,45 @@ void adc_init(void)
     nvic_enable_irq(NVIC_DMA1_CHANNEL1_IRQ);
     ADC_CFGR1(ADC1) |= 1UL<<0; // DMAEN=1
     ADC_CFGR1(ADC1) |= 1UL<<1; // DMACFG=1
+    ADC_IER(ADC1) |= 1UL<<4; // OVRIE=1
+    nvic_enable_irq(NVIC_ADC1_2_IRQ);
     ADC_CR(ADC1) |= 1UL<<2; // ADSTART=1
+}
+
+
+void adc1_2_isr(void)
+{
+    if ((ADC_ISR(ADC1)&(1UL<<4)) != 0) {
+        // the ADC has stopped generating DMA requests because the DMA was
+        // unable to service a request before the next conversion starts.
+        // we reset both the DMA and ADC to the beginning of the sequence so that
+        // the data stays aligned in the buffer
+        smperr++;
+        ADC_CR(ADC1) |= 1UL<<4; // ADSTP=1
+        while ((ADC_CR(ADC1)&(1UL<<4)) != 0); // wait for ADC to stop
+        DMA_CCR(DMA1,DMA_CHANNEL1) &= ~(1UL<<0); // EN=0
+        DMA_CNDTR(DMA1,DMA_CHANNEL1) = NUM_CONVERSIONS; // N transfers
+        DMA_CCR(DMA1,DMA_CHANNEL1) |= 1UL<<0; // EN=1
+        ADC_ISR(ADC1) |= (1UL<<4); // clear interrupt flag
+        ADC_CR(ADC1) |= 1UL<<2; // ADSTART=1
+    }
 }
 
 void dma1_channel1_isr(void)
 {
-    csa_v[0] = adcbuf[3]*3.3f/4096.0f;
-    csa_v[1] = adcbuf[4]*3.3f/4096.0f;
-    csa_v[2] = adcbuf[5]*3.3f/4096.0f;
-    vsense_v = 0.0f;
-    uint8_t i;
-    for (i=0; i<3; i++) vsense_v += adcbuf[i];
-    vsense_v *= 3.3f/4096.0f/3.0f;
+    if ((DMA_ISR(DMA1)&(1UL<<1)) != 0) {
+        // TCIF1 is asserted
+        smpidx++;
+        csa_v[0] = adcbuf[3]*3.3f/4096.0f;
+        csa_v[1] = adcbuf[4]*3.3f/4096.0f;
+        csa_v[2] = adcbuf[5]*3.3f/4096.0f;
+        vsense_v = 0.0f;
+        uint8_t i;
+        for (i=0; i<3; i++) vsense_v += adcbuf[i];
+        vsense_v *= 3.3f/4096.0f/3.0f;
 
-    DMA_IFCR(DMA1) |= 1UL<<1; // clear interrupt flag
-    smpidx++;
+        DMA_IFCR(DMA1) |= 1UL<<1; // clear interrupt flag
+    }
 }
 
 void adc_wait_for_sample(void)
