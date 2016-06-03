@@ -35,7 +35,7 @@ void set_phase_duty(float phaseA, float phaseB, float phaseC)
     phaseA = constrain_float(phaseA, 0.0f,1.0f);
     timer_set_oc_value(TIM1, TIM_OC1, ((TIM1_ARR-0.5f)*phaseA)+0.5f);
     phaseB = constrain_float(phaseB, 0.0f,1.0f);
-    timer_set_oc_value(TIM1, TIM_OC1, ((TIM1_ARR-0.5f)*phaseB)+0.5f);
+    timer_set_oc_value(TIM1, TIM_OC2, ((TIM1_ARR-0.5f)*phaseB)+0.5f);
     phaseC = constrain_float(phaseC, 0.0f,1.0f);
-    timer_set_oc_value(TIM1, TIM_OC1, ((TIM1_ARR-0.5f)*phaseC)+0.5f);
+    timer_set_oc_value(TIM1, TIM_OC3, ((TIM1_ARR-0.5f)*phaseC)+0.5f);
 }

@@ -32,6 +32,7 @@ int main(void)
     uint32_t last_t_us = 0;
     uint32_t last_print_t = 0;
     uint8_t prev_smpidx = 0;
+    float id_ref_filt;
 
     clock_init();
     timing_init();
@@ -41,6 +42,7 @@ int main(void)
     pwm_init();
     adc_init();
     motor_init();
+    motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
 
     // main loop
     while(1) {
@@ -62,22 +64,30 @@ int main(void)
 
         motor_update_state(dt);
 
-        const float ang_P = 2.0f;
+        const float tc = 0.01f;
+        const float ang_P = 4.0f;
         const float ang_D = 0.15f;
+        float alpha = dt/(dt+tc);
         //float pos_dem = sinf(2.0f*M_PI_F*millis()*1.0e-3f);
-        float pos_dem = (millis()/500)%2 ? 0.0f : M_PI_F/2.0f;
-        motor_set_id_ref(wrap_pi(pos_dem-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D);
+        //float pos_dem = (millis()/500)%2 ? 0.0f : M_PI_F/2.0f;
+        float pos_dem = 0.0f;
+        id_ref_filt += ((wrap_pi(pos_dem-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - id_ref_filt) * alpha;
+        motor_set_id_ref(id_ref_filt);
 
         motor_run_commutation(dt);
 
-        if (millis()-last_print_t > 10) {
+        if (motor_get_mode() == MOTOR_MODE_DISABLED) {
+            //motor_set_mode(MOTOR_MODE_FOC_CURRENT);
+        }
+
+        /*if (millis()-last_print_t > 10) {
             last_print_t = millis();
 
             char buf[256];
             int n;
-            n = sprintf(buf, "% f,% f,% f,% f\n", motor_get_phys_rotor_angle()*180.0f/M_PI_F, motor_get_elec_rotor_angle()*180.0f/M_PI_F, wrap_2pi(2.0f*M_PI_F*millis()*1e-3f)*180.0f/M_PI_F, wrap_pi(motor_get_elec_rotor_angle()-wrap_2pi(2.0f*M_PI_F*millis()*1e-3f))*180.0f/M_PI_F);
+            n = sprintf(buf, "% f,% f\n", dt, dt_real);
             serial_send_dma(n, buf);
-        }
+        }*/
     }
 
     return 0;

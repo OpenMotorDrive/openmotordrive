@@ -53,24 +53,30 @@ def double2float(string):
 
 
 
-d,q,o,a,b,c,theta = symbols('d q o a b c theta')
+d,q,o,a,b,c,alpha,beta,gamma,theta = symbols('d q o a b c alpha beta gamma elec_theta_m')
 
-K = sqrt(2./3.)*Matrix([[ cos(theta),  cos(theta - 2.*S.Pi/3.),  cos(theta + 2.*S.Pi/3.)],
-                           [-sin(theta), -sin(theta - 2.*S.Pi/3.), -sin(theta + 2.*S.Pi/3.)],
-                           [  sqrt(2)/2,                sqrt(2)/2,                sqrt(2)/2]])
+T_abc_aby = sqrt(2./3.)*Matrix([[      S.One,      -S.Half,      -S.Half],
+                                [     S.Zero,  sqrt(3.)/2., -sqrt(3.)/2.],
+                                [ 1./sqrt(2.), 1./sqrt(2.),  1./sqrt(2.)]])
 
-abc = Matrix([[a],[b],[c]])
-dqo = Matrix([[d],[q],[o]])
+T_aby_dqo = Matrix([[ cos(theta), sin(theta), S.Zero],
+                    [-sin(theta), cos(theta), S.Zero],
+                    [     S.Zero,     S.Zero,  S.One]])
 
-dqo_soln = K*abc
-print "dqo"
-print double2float(MyPrinter().doprint(simplify(dqo_soln[0,0]), 'd'))
-print double2float(MyPrinter().doprint(simplify(dqo_soln[1,0]), 'q'))
-print double2float(MyPrinter().doprint(simplify(dqo_soln[2,0]), 'o'))
+T_abc_dqo = T_aby_dqo*T_abc_aby
 
-abc_soln = K.T*dqo
-#abc_soln = abc_soln.subs(o,S.Zero)
-print "abc"
-print double2float(MyPrinter().doprint(abc_soln[0,0], 'a'))
-print double2float(MyPrinter().doprint(abc_soln[1,0], 'b'))
-print double2float(MyPrinter().doprint(abc_soln[2,0], 'c'))
+abc_sym = Matrix([[a],[b],[c]])
+aby_sym = Matrix([[alpha],[beta],[gamma]])
+dqo_sym = Matrix([[d],[q],[o]])
+
+aby = simplify(T_abc_aby*abc_sym)
+print "abc->aby"
+print double2float(MyPrinter().doprint(aby[0,0], 'alpha'))
+print double2float(MyPrinter().doprint(aby[1,0], 'beta'))
+print double2float(MyPrinter().doprint(aby[2,0], 'gamma'))
+
+dqo = simplify(T_aby_dqo*aby_sym)
+print "aby->dqo"
+print double2float(MyPrinter().doprint(dqo[0,0], 'd'))
+print double2float(MyPrinter().doprint(dqo[1,0], 'q'))
+print double2float(MyPrinter().doprint(dqo[2,0], 'o'))
