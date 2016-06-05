@@ -15,7 +15,7 @@ static volatile float csa_v[3] = {0,0,0};
 static volatile float vsense_v = 0.0f;
 static volatile uint16_t adcbuf[NUM_CONVERSIONS];
 static volatile uint8_t smpidx = 0;
-static volatile uint32_t smperr = 0;
+static volatile uint32_t errcnt = 0;
 
 void adc_init(void)
 {
@@ -107,7 +107,6 @@ void adc_init(void)
     ADC_CR(ADC1) |= 1UL<<2; // ADSTART=1
 }
 
-
 void adc1_2_isr(void)
 {
     if ((ADC_ISR(ADC1)&(1UL<<4)) != 0) {
@@ -115,7 +114,7 @@ void adc1_2_isr(void)
         // unable to service a request before the next conversion starts.
         // we reset both the DMA and ADC to the beginning of the sequence so that
         // the data stays aligned in the buffer
-        smperr++;
+        errcnt++;
         ADC_CR(ADC1) |= 1UL<<4; // ADSTP=1
         while ((ADC_CR(ADC1)&(1UL<<4)) != 0); // wait for ADC to stop
         DMA_CCR(DMA1,DMA_CHANNEL1) &= ~(1UL<<0); // EN=0
@@ -164,4 +163,9 @@ float adc_get_vsense_v(void)
 uint8_t adc_get_smpidx(void)
 {
     return smpidx;
+}
+
+uint32_t adc_get_errcnt(void)
+{
+    return errcnt;
 }

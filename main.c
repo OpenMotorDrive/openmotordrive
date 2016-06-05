@@ -22,9 +22,40 @@
 #include "pwm.h"
 #include "drv.h"
 #include "motor.h"
+#include "encoder.h"
 
-static void delay_task(void) {
+static void idle_task(void) {
     // will read UART and process commands here
+    char byte;
+    if (serial_recv_peek(&byte)) {
+        byte += 1;
+        if (serial_send_dma(1, &byte)) {
+            serial_recv_pop(&byte);
+        }
+    }
+    encoder_read_angle();
+}
+
+static void main_loop(float dt) {
+    static float id_ref_filt;
+    motor_update_state(dt);
+
+//     const float tc = 0.002f;
+//     const float ang_P = 20.0f;
+//     const float ang_D = 0.1f;
+//     float alpha = dt/(dt+tc);
+//     float pos_dem = M_PI_F/2.0f*sinf(2.0f*2.0f*M_PI_F*millis()*1.0e-3f);
+//     float pos_dem = (millis()/500)%2 ? 0.0f : M_PI_F/2.0f;
+//     float pos_dem = 0.0f;
+//     id_ref_filt += ((wrap_pi(pos_dem-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - id_ref_filt) * alpha;
+//     motor_set_id_ref(id_ref_filt);
+    motor_set_id_ref(0.5f);
+
+    motor_run_commutation(dt);
+
+    if (motor_get_mode() == MOTOR_MODE_DISABLED) {
+        motor_set_mode(MOTOR_MODE_FOC_CURRENT);
+    }
 }
 
 int main(void)
@@ -32,7 +63,6 @@ int main(void)
     uint32_t last_t_us = 0;
     uint32_t last_print_t = 0;
     uint8_t prev_smpidx = 0;
-    float id_ref_filt;
 
     clock_init();
     timing_init();
@@ -41,6 +71,7 @@ int main(void)
     drv_init();
     pwm_init();
     adc_init();
+    usleep(100000);
     motor_init();
     motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
 
@@ -50,7 +81,7 @@ int main(void)
         uint8_t smpidx, d_smp;
         uint32_t t1_us = micros();
         do {
-            delay_task();
+            idle_task();
             smpidx = adc_get_smpidx();
             d_smp = smpidx-prev_smpidx;
         } while (d_smp < 3);
@@ -60,34 +91,20 @@ int main(void)
         uint32_t tnow_us = micros();
         float dt_real = (tnow_us-last_t_us)*1.0e-6f;
         last_t_us = tnow_us;
-        uint8_t usagepct = (1.0f-(micros()-t1_us)*1.0e-6f / dt)*100.0f;
+        uint8_t usagepct = (1.0f-(tnow_us-t1_us)*1.0e-6f / dt)*100.0f;
 
-        motor_update_state(dt);
+        uint32_t t2 = micros();
+        main_loop(dt);
+        uint32_t t3 = micros();
 
-        const float tc = 0.01f;
-        const float ang_P = 4.0f;
-        const float ang_D = 0.15f;
-        float alpha = dt/(dt+tc);
-        //float pos_dem = sinf(2.0f*M_PI_F*millis()*1.0e-3f);
-        //float pos_dem = (millis()/500)%2 ? 0.0f : M_PI_F/2.0f;
-        float pos_dem = 0.0f;
-        id_ref_filt += ((wrap_pi(pos_dem-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - id_ref_filt) * alpha;
-        motor_set_id_ref(id_ref_filt);
-
-        motor_run_commutation(dt);
-
-        if (motor_get_mode() == MOTOR_MODE_DISABLED) {
-            //motor_set_mode(MOTOR_MODE_FOC_CURRENT);
-        }
-
-        /*if (millis()-last_print_t > 10) {
+        if (millis()-last_print_t > 100) {
             last_print_t = millis();
 
             char buf[256];
             int n;
-            n = sprintf(buf, "% f,% f\n", dt, dt_real);
+            n = snprintf(buf, sizeof(buf), "1 0x%04X\n2 0x%04X\n3 0x%04X\n4 0x%04X\n\n", drv_read_register(0x1),drv_read_register(0x2),drv_read_register(0x3),drv_read_register(0x4));
             serial_send_dma(n, buf);
-        }*/
+        }
     }
 
     return 0;

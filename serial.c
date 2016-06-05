@@ -1,4 +1,5 @@
 #include "serial.h"
+#include "ringbuf.h"
 
 #include <string.h>
 #include <libopencm3/stm32/rcc.h>
@@ -10,9 +11,10 @@
 #define TXBUF_LEN 256
 #define RXBUF_LEN 256
 
-static char rxbuf[RXBUF_LEN];
+static volatile char _rxbuf[RXBUF_LEN];
+static volatile struct ringbuf_t rxbuf = {_rxbuf, RXBUF_LEN, 0, 0};
+
 static char txbuf[TXBUF_LEN];
-uint16_t txbuf_tail;
 
 void serial_init(void)
 {
@@ -40,12 +42,39 @@ void serial_init(void)
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<4; // DIR=1 (read from memory)
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<7; // MINC=1
 
+    // set up recv interrupt
+    nvic_enable_irq(NVIC_USART1_EXTI25_IRQ);
+    USART_CR1(USART1) |= 1UL<<5; // RXNEIE=1
+
     usart_enable(USART1);
+}
+
+void usart1_exti25_isr(void)
+{
+    if ((USART_ISR(USART1)&(1UL<<5)) != 0) {
+        // a byte has been received
+        ringbuf_push(&rxbuf, USART_RDR(USART1));
+    }
+}
+
+bool serial_recv_peek(char* byte)
+{
+    return byte && ringbuf_peek(&rxbuf, byte);
+}
+
+bool serial_recv_pop(char* byte)
+{
+    return byte && ringbuf_pop(&rxbuf, byte);
+}
+
+bool serial_ready_to_send(void)
+{
+    return (USART_ISR(USART1)&(1UL<<6)) != 0;
 }
 
 bool serial_send_dma(uint16_t len, char* buf)
 {
-    if ((USART_ISR(USART1)&(1UL<<6)) != 0) {
+    if (serial_ready_to_send()) {
         DMA_CCR(DMA1,DMA_CHANNEL4) &= ~(1UL<<0); // EN=0
         memcpy(txbuf, buf, len);
         DMA_CMAR(DMA1,DMA_CHANNEL4) = (uint32_t)&(txbuf[0]);

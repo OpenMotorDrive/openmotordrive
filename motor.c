@@ -15,8 +15,8 @@ static uint8_t elec_rots_per_mech_rot = 7;
 static float elec_theta_bias = 0.0f;
 static bool swap_phases = false;
 static const float curr_KR = 9.0f;
-static const float curr_KP = 30.0f;
-static const float curr_KI = 5000.0f;
+static const float curr_KP = 10.0f;
+static const float curr_KI = 10000.0f;
 static const float vsense_div = 20.0f;
 static const float csa_G = 80.0f;
 static const float csa_R = 0.001f;
@@ -40,6 +40,7 @@ struct {
     uint32_t start_time_us;
     uint8_t step;
     float mech_theta_0;
+    float elec_theta_0;
 } encoder_calibration_state;
 
 struct curr_pid_param_s iq_pid_param;
@@ -63,12 +64,13 @@ static void svgen(float alpha, float beta, float* a, float* b, float* c);
 void motor_init(void)
 {
     // calibrate phase currents
-    uint8_t i;
+    uint16_t i;
     drv_write_register_bits(0xA, 8, 10, 0b111UL);
+    usleep(50);
     csa_cal[0] = 0;
     csa_cal[1] = 0;
     csa_cal[2] = 0;
-    for(i=0; i<100; i++) {
+    for(i=0; i<1000; i++) {
         float csa_v_a, csa_v_b, csa_v_c;
         adc_wait_for_sample();
         adc_get_csa_v(&csa_v_a, &csa_v_b, &csa_v_c);
@@ -77,9 +79,9 @@ void motor_init(void)
         csa_cal[2] += csa_v_c;
     }
     drv_write_register_bits(0xA, 8, 10, 0b000UL);
-    csa_cal[0] /= 100;
-    csa_cal[1] /= 100;
-    csa_cal[2] /= 100;
+    csa_cal[0] /= 1000;
+    csa_cal[1] /= 1000;
+    csa_cal[2] /= 1000;
 
     // initialize encoder filter states
     retrieve_encoder_measurement();
@@ -106,16 +108,9 @@ void motor_run_commutation(float dt)
     char buf[256];
     int n;
 
-    float alpha, beta, theta, a, b, c, t;
+    float alpha, beta, a, b, c;
     switch (motor_mode) {
         case MOTOR_MODE_DISABLED:
-            // reset PID states and inputs
-            memset(&id_pid_state,0,sizeof(id_pid_state));
-            memset(&iq_pid_state,0,sizeof(iq_pid_state));
-            id_pid_param.i_ref = 0.0f;
-            iq_pid_param.i_ref = 0.0f;
-
-            // the DRV is in 6 pwm mode - motor should be free-spinning at 0 duty cycle
             set_phase_duty(0.0f, 0.0f, 0.0f);
             break;
 
@@ -141,30 +136,34 @@ void motor_run_commutation(float dt)
             }
             break;
 
-        case MOTOR_MODE_ENCODER_CALIBRATION:
-            t = (micros() - encoder_calibration_state.start_time_us)*1.0e-6f;
+        case MOTOR_MODE_ENCODER_CALIBRATION: {
+            float t = (micros() - encoder_calibration_state.start_time_us)*1.0e-6f;
+            float theta;
 
             switch(encoder_calibration_state.step) {
                 case 0:
-                    // theta is 0 and the motor is given 0.5 seconds to settle
+                    // the motor is given 0.5 seconds to settle
                     theta = 0.0f;
                     if (t > 0.5f) {
                         encoder_calibration_state.mech_theta_0 = mech_theta_m;
+                        encoder_calibration_state.elec_theta_0 = atan2f(ibeta_m,ialpha_m);
                         encoder_calibration_state.step = 1;
                     }
                     break;
                 case 1:
-                    // theta rotates to 360deg at the 1.5 second mark and is given 0.25 seconds to settle
-                    theta = constrain_float(2.0f*M_PI_F * (t-0.5)/1.0f, 0.0f, 2.0f*M_PI_F);
+                    // theta rotates to 90deg at the 1.5 second mark and is given 0.25 seconds to settle
+                    theta = constrain_float(M_PI_F/2.0f * (t-0.5)/1.0f, 0.0f, M_PI_F/2.0f);
                     if (t > 1.75f) {
                         // elec_rots_per_mech_rot = delta_elec_angle/delta_mech_angle
-                        elec_rots_per_mech_rot = (uint8_t)((2.0f*M_PI_F)/fabsf(wrap_pi(mech_theta_m - encoder_calibration_state.mech_theta_0)) + 0.5f);
+                        elec_rots_per_mech_rot = (uint8_t)((M_PI_F/2.0f)/fabsf(wrap_pi(mech_theta_m - encoder_calibration_state.mech_theta_0)) + 0.5f);
 
                         // rotating the field in the positive direction should have rotated the encoder in the positive direction too
                         swap_phases = mech_theta_m < encoder_calibration_state.mech_theta_0;
 
-                        elec_theta_bias = (swap_phases?1.0f:-1.0f)*wrap_pi(elec_rots_per_mech_rot * encoder_calibration_state.mech_theta_0);
+                        // correct for poor impedence matching by measuring the actual electrical angle
+                        elec_theta_bias = (swap_phases?1.0f:-1.0f)*wrap_pi(elec_rots_per_mech_rot * encoder_calibration_state.mech_theta_0 - encoder_calibration_state.elec_theta_0);
 
+                        // exit the calibration mode
                         motor_set_mode(MOTOR_MODE_DISABLED);
                     }
                     break;
@@ -182,12 +181,14 @@ void motor_run_commutation(float dt)
             set_phase_duty(a, b, c);
 
             break;
+        }
 
-        case MOTOR_MODE_TEST:
-            theta = wrap_2pi(2.0f*M_PI_F*millis()*1e-3f);
+        case MOTOR_MODE_TEST: {
+            float theta = wrap_2pi(0.1f*millis()*1e-3f);
+            float v = 1.0f;//constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty);
 
-            alpha = constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty) * cosf(theta);
-            beta = constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty) * sinf(theta);
+            alpha = v * cosf(theta);
+            beta = v * sinf(theta);
 
             svgen(alpha, beta, &a, &b, &c);
             a -= (1.0f-max_duty)*0.5f;
@@ -195,17 +196,14 @@ void motor_run_commutation(float dt)
             c -= (1.0f-max_duty)*0.5f;
 
             set_phase_duty(a, b, c);
-
-            uint32_t tnow_ms = millis();
-            if (tnow_ms - last_print_ms > 50) {
-                n = snprintf(buf, sizeof(buf), "%f,% f\n", mech_theta_m, 180.0f/M_PI_F * wrap_pi(M_PI_F/2.0f+atan2f(ibeta_m,ialpha_m)-elec_theta_m));
-                serial_send_dma(n, buf);
-
-                last_print_ms = tnow_ms;
-            }
-
             break;
+        }
     }
+
+    /*if (serial_ready_to_send()) {
+        n = snprintf(buf, sizeof(buf), "% f\t% f\t % f\n", id_est,iq_est,igamma_m);
+        serial_send_dma(n, buf);
+    }*/
 }
 
 void motor_set_mode(enum motor_mode_t mode)
@@ -216,6 +214,12 @@ void motor_set_mode(enum motor_mode_t mode)
         encoder_calibration_state.start_time_us = micros();
         encoder_calibration_state.step = 0;
     }
+
+    // reset PID states and inputs
+    memset(&id_pid_state,0,sizeof(id_pid_state));
+    memset(&iq_pid_state,0,sizeof(iq_pid_state));
+    id_pid_param.i_ref = 0.0f;
+    iq_pid_param.i_ref = 0.0f;
 }
 
 void motor_set_id_ref(float id_ref)
@@ -258,7 +262,7 @@ static void retrieve_adc_measurements(void)
 
 static void retrieve_encoder_measurement(void)
 {
-    mech_theta_m = wrap_2pi(encoder_read_rad());
+    mech_theta_m = wrap_2pi(encoder_get_angle_rad());
     elec_theta_m = wrap_2pi(mech_theta_m*elec_rots_per_mech_rot-elec_theta_bias);
 }
 

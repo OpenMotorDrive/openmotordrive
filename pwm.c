@@ -25,7 +25,7 @@ void pwm_init(void)
     timer_enable_oc_output(TIM1, TIM_OC4);
     timer_enable_break_main_output(TIM1);
     timer_set_period(TIM1, 1000);
-    timer_set_oc_value(TIM1, TIM_OC4, 12);
+    timer_set_oc_value(TIM1, TIM_OC4, 24);
     TIM1_CR2 |= 0b0111 << 20; // MMS2 OCREF4
     timer_enable_counter(TIM1);
 }
