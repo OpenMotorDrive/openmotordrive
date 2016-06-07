@@ -67,6 +67,7 @@ int main(void)
     clock_init();
     timing_init();
     serial_init();
+    param_init();
     spi_init();
     drv_init();
     pwm_init();

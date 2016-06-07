@@ -12,5 +12,6 @@
 float constrain_float(float val, float min_val, float max_val);
 float wrap_2pi(float val);
 float wrap_pi(float val);
+uint16_t crc16_ccitt(const char *buf, uint32_t len, uint16_t crc);
 
 #endif // HELPERS_H
