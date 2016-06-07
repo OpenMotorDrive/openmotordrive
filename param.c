@@ -35,7 +35,7 @@ static float param_cache[NUM_PARAMS] = {
     1.0f
 };
 
-static uint8_t param_is_saved[NUM_PARAMS];
+static uint8_t param_has_entry[NUM_PARAMS];
 
 static struct param_page_t* param_get_most_recent_valid_page(void);
 static bool param_append_to_page(const struct param_page_t* page, enum param_key_t key, float value);
@@ -72,10 +72,10 @@ void param_init(void)
         }
         if (param_key_valid(page_in_use->journal[i].payload.key) && page_in_use->journal[i].payload_crc16 == param_get_tuple_crc16(&(page_in_use->journal[i].payload))) {
             param_cache[page_in_use->journal[i].payload.key] = page_in_use->journal[i].payload.value;
-            if (param_is_saved[page_in_use->journal[i].payload.key]) {
+            if (param_has_entry[page_in_use->journal[i].payload.key]) {
                 squash_needed = true;
             }
-            param_is_saved[page_in_use->journal[i].payload.key] = true;
+            param_has_entry[page_in_use->journal[i].payload.key] = true;
         } else {
             squash_needed = true;
         }
@@ -90,31 +90,24 @@ float param_retrieve(enum param_key_t key)
     return param_cache[key];
 }
 
-void param_set(enum param_key_t key, float value)
-{
-    param_cache[key] = value;
-}
-
-bool param_save(enum param_key_t key)
+bool param_set_and_save(enum param_key_t key, float value)
 {
     if (page_in_use == NULL || !param_key_valid(key)) {
         return false;
     }
 
     bool success;
-    success = param_append_to_page(page_in_use, key, param_cache[key]);
+    success = param_append_to_page(page_in_use, key, value);
     if (!success && squash_needed) {
         param_squash();
-        success = param_append_to_page(page_in_use, key, param_cache[key]);
+        success = param_append_to_page(page_in_use, key, value);
+    }
+
+    if(success) {
+        param_cache[key] = value;
     }
 
     return success;
-}
-
-bool param_set_and_save(enum param_key_t key, float value)
-{
-    param_set(key, value);
-    return param_save(key);
 }
 
 static bool param_key_valid(enum param_key_t key)
@@ -153,7 +146,7 @@ void param_squash(void)
     flash_lock();
 
     for(i=0; i<NUM_PARAMS; i++) {
-        if(param_key_valid(i) && param_is_saved[i]) {
+        if(param_key_valid(i) && param_has_entry[i]) {
             param_append_to_page(next_page, i, param_cache[i]);
         }
     }
@@ -201,10 +194,10 @@ static bool param_append_to_page(const struct param_page_t* page, enum param_key
         param_flash_program_half_word(&(dest_buf[i]), src_buf[i]);
     }
     flash_lock();
-    if (param_is_saved[key]) {
+    if (param_has_entry[key]) {
         squash_needed = true;
     }
-    param_is_saved[key] = true;
+    param_has_entry[key] = true;
 
     return true;
 }

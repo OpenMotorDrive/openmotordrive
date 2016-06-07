@@ -9,8 +9,6 @@ enum param_key_t {
 };
 
 void param_init(void);
-void param_set(enum param_key_t key, float value);
-bool param_save(enum param_key_t key);
 bool param_set_and_save(enum param_key_t key, float value);
 float param_retrieve(enum param_key_t key);
 void param_erase(void);
