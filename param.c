@@ -3,8 +3,16 @@
 
 #include <libopencm3/stm32/flash.h>
 
-struct param_header_t {
+#define PARAM_FORMAT_VERSION 0
+
+struct param_header_data_t {
+    uint16_t format_version;
     uint16_t seq;
+};
+
+struct param_header_t {
+    struct param_header_data_t data;
+    uint16_t data_crc16;
 };
 
 struct param_tuple_t {
@@ -13,8 +21,8 @@ struct param_tuple_t {
 };
 
 struct param_journal_entry_t {
-    struct param_tuple_t payload;
-    uint16_t payload_crc16;
+    struct param_tuple_t data;
+    uint16_t data_crc16;
     uint16_t invalid;
 };
 
@@ -41,6 +49,7 @@ static struct param_page_t* param_get_most_recent_valid_page(void);
 static bool param_append_to_page(const struct param_page_t* page, enum param_key_t key, float value);
 static bool param_flash_program_half_word(uint16_t* addr, uint16_t value);
 static bool param_flash_erase_page(uint32_t addr);
+static uint16_t param_get_header_data_crc16(struct param_header_data_t* header_data);
 static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple);
 static bool param_key_valid(enum param_key_t key);
 
@@ -59,7 +68,9 @@ void param_init(void)
     if (page_in_use == NULL) {
         flash_unlock();
         param_flash_erase_page((uint32_t)&page_A);
-        param_flash_program_half_word(&page_A.header.seq, 0);
+        param_flash_program_half_word(&page_A.header.data.format_version, PARAM_FORMAT_VERSION);
+        param_flash_program_half_word(&page_A.header.data.seq, 0);
+        param_flash_program_half_word(&page_A.header.data_crc16, param_get_header_data_crc16(&page_A.header.data));
         flash_lock();
         page_in_use = &page_A;
         return;
@@ -70,12 +81,12 @@ void param_init(void)
         if (page_in_use->journal[i].invalid) {
             break;
         }
-        if (param_key_valid(page_in_use->journal[i].payload.key) && page_in_use->journal[i].payload_crc16 == param_get_tuple_crc16(&(page_in_use->journal[i].payload))) {
-            param_cache[page_in_use->journal[i].payload.key] = page_in_use->journal[i].payload.value;
-            if (param_has_entry[page_in_use->journal[i].payload.key]) {
+        if (param_key_valid(page_in_use->journal[i].data.key) && page_in_use->journal[i].data_crc16 == param_get_tuple_crc16(&(page_in_use->journal[i].data))) {
+            param_cache[page_in_use->journal[i].data.key] = page_in_use->journal[i].data.value;
+            if (param_has_entry[page_in_use->journal[i].data.key]) {
                 squash_needed = true;
             }
-            param_has_entry[page_in_use->journal[i].payload.key] = true;
+            param_has_entry[page_in_use->journal[i].data.key] = true;
         } else {
             squash_needed = true;
         }
@@ -117,14 +128,19 @@ static bool param_key_valid(enum param_key_t key)
             return true;
         case NUM_PARAMS:
             break; // prevents warning
-    }
+        }
     return false;
 }
 
 static struct param_page_t* param_get_most_recent_valid_page(void) {
-    if (page_A.header.seq == 65535U && page_B.header.seq == 65535U) {
+    bool page_A_valid = page_A.header.data.format_version == PARAM_FORMAT_VERSION && page_A.header.data.seq != 0xFFFFU && page_A.header.data_crc16 == param_get_header_data_crc16(&page_A.header.data);
+    bool page_B_valid = page_B.header.data.format_version == PARAM_FORMAT_VERSION && page_B.header.data.seq != 0xFFFFU && page_B.header.data_crc16 == param_get_header_data_crc16(&page_B.header.data);
+
+    if (!page_A_valid && !page_B_valid) {
         return NULL;
-    } else if (page_B.header.seq == 65535U || (int16_t)(page_A.header.seq-page_B.header.seq) > 0) {
+    }
+
+    if (!page_B_valid || (int16_t)(page_A.header.data.seq-page_B.header.data.seq) > 0) {
         return &page_A;
     } else {
         return &page_B;
@@ -152,7 +168,9 @@ void param_squash(void)
     }
 
     flash_unlock();
-    param_flash_program_half_word(&(next_page->header.seq), (page_in_use->header.seq+1)%65534U);
+    param_flash_program_half_word(&next_page->header.data.format_version, PARAM_FORMAT_VERSION);
+    param_flash_program_half_word(&next_page->header.data.seq, (page_in_use->header.data.seq+1)%(0xFFFFU-1));
+    param_flash_program_half_word(&next_page->header.data_crc16, param_get_header_data_crc16(&next_page->header.data));
     flash_lock();
 
     page_in_use = next_page;
@@ -164,9 +182,9 @@ static bool param_append_to_page(const struct param_page_t* page, enum param_key
 
     struct param_journal_entry_t entry;
 
-    entry.payload.key = key;
-    entry.payload.value = value;
-    entry.payload_crc16 = param_get_tuple_crc16(&(entry.payload));
+    entry.data.key = key;
+    entry.data.value = value;
+    entry.data_crc16 = param_get_tuple_crc16(&(entry.data));
     entry.invalid = 0;
 
     bool already_set = false;
@@ -178,7 +196,7 @@ static bool param_append_to_page(const struct param_page_t* page, enum param_key
         if (page->journal[i].invalid) {
             break;
         }
-        already_set = page->journal[i].payload.value == entry.payload.value;
+        already_set = page->journal[i].data.value == entry.data.value;
         i++;
     }
     if (already_set) {
@@ -200,6 +218,11 @@ static bool param_append_to_page(const struct param_page_t* page, enum param_key
     param_has_entry[key] = true;
 
     return true;
+}
+
+static uint16_t param_get_header_data_crc16(struct param_header_data_t* header_data)
+{
+    return crc16_ccitt((char*)header_data, sizeof(struct param_header_data_t), 0);
 }
 
 static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple)
