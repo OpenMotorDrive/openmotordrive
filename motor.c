@@ -33,8 +33,7 @@ static float mech_theta_m = 0.0f; // mechanical rotor angle
 static float prev_mech_theta_m = 0.0f; // previous mechanical rotor angle for differentiation
 static float elec_theta_m = 0.0f; // electrical rotor angle
 static float mech_omega_est = 0.0f; // mechanical rotor angular velocity
-static enum motor_mode_t motor_mode = MOTOR_MODE_DISABLED; // enables motor
-static uint32_t last_print_ms;
+static enum motor_mode_t motor_mode = MOTOR_MODE_DISABLED;
 
 struct {
     uint32_t start_time_us;
@@ -105,9 +104,6 @@ void motor_run_commutation(float dt)
     id_pid_param.i_meas = id_est;
     iq_pid_param.i_meas = iq_est;
 
-    char buf[256];
-    int n;
-
     float alpha, beta, a, b, c;
     switch (motor_mode) {
         case MOTOR_MODE_DISABLED:
@@ -138,7 +134,7 @@ void motor_run_commutation(float dt)
 
         case MOTOR_MODE_ENCODER_CALIBRATION: {
             float t = (micros() - encoder_calibration_state.start_time_us)*1.0e-6f;
-            float theta;
+            float theta = 0.0f;
 
             switch(encoder_calibration_state.step) {
                 case 0:
@@ -152,7 +148,7 @@ void motor_run_commutation(float dt)
                     break;
                 case 1:
                     // theta rotates to 90deg at the 1.5 second mark and is given 0.25 seconds to settle
-                    theta = constrain_float(M_PI_F/2.0f * (t-0.5)/1.0f, 0.0f, M_PI_F/2.0f);
+                    theta = constrain_float(M_PI_F/2.0f * (t-0.5f)/1.0f, 0.0f, M_PI_F/2.0f);
                     if (t > 1.75f) {
                         // elec_rots_per_mech_rot = delta_elec_angle/delta_mech_angle
                         elec_rots_per_mech_rot = (uint8_t)((M_PI_F/2.0f)/fabsf(wrap_pi(mech_theta_m - encoder_calibration_state.mech_theta_0)) + 0.5f);
@@ -199,11 +195,6 @@ void motor_run_commutation(float dt)
             break;
         }
     }
-
-    /*if (serial_ready_to_send()) {
-        n = snprintf(buf, sizeof(buf), "% f\t% f\t % f\n", id_est,iq_est,igamma_m);
-        serial_send_dma(n, buf);
-    }*/
 }
 
 void motor_set_mode(enum motor_mode_t mode)

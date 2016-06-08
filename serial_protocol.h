@@ -1,6 +1,8 @@
 #ifndef SERIAL_PROTOCOL_H
 #define SERIAL_PROTOCOL_H
 
+#include <stdint.h>
+
 enum msg_type_t {
     MSG_TYPE_STATUS=0,
     MSG_TYPE_PARAM_VALUE,

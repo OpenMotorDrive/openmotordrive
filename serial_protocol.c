@@ -1,6 +1,11 @@
 #include "serial_protocol.h"
 #include "serial.h"
 
+#define SLIP_END 0xC0
+#define SLIP_ESC 0xDB
+#define SLIP_ESC_END 0xDC
+#define SLIP_ESC_ESC 0xDD
+
 static int32_t encode_slip(char* buf_in, uint16_t len, char* buf_out, uint16_t max_len);
 static bool serial_protocol_send_frame(char* buf, uint16_t len);
 

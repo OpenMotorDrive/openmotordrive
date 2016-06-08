@@ -18,6 +18,7 @@
 #include "init.h"
 #include "helpers.h"
 #include "serial.h"
+#include "param.h"
 #include "adc.h"
 #include "pwm.h"
 #include "drv.h"
@@ -37,9 +38,8 @@ static void idle_task(void) {
 }
 
 static void main_loop(float dt) {
-    static float id_ref_filt;
     motor_update_state(dt);
-
+//     static float id_ref_filt;
 //     const float tc = 0.002f;
 //     const float ang_P = 20.0f;
 //     const float ang_D = 0.1f;
@@ -60,8 +60,7 @@ static void main_loop(float dt) {
 
 int main(void)
 {
-    uint32_t last_t_us = 0;
-    uint32_t last_print_t = 0;
+//     uint32_t last_t_us = 0;
     uint8_t prev_smpidx = 0;
 
     clock_init();
@@ -80,7 +79,7 @@ int main(void)
     while(1) {
         // wait specified time for adc measurement
         uint8_t smpidx, d_smp;
-        uint32_t t1_us = micros();
+//         uint32_t t1_us = micros();
         do {
             idle_task();
             smpidx = adc_get_smpidx();
@@ -89,23 +88,12 @@ int main(void)
         prev_smpidx = smpidx;
         float dt = d_smp*1.0f/18000.0f;
 
-        uint32_t tnow_us = micros();
-        float dt_real = (tnow_us-last_t_us)*1.0e-6f;
-        last_t_us = tnow_us;
-        uint8_t usagepct = (1.0f-(tnow_us-t1_us)*1.0e-6f / dt)*100.0f;
+//         uint32_t tnow_us = micros();
+//         float dt_real = (tnow_us-last_t_us)*1.0e-6f;
+//         last_t_us = tnow_us;
+//         uint8_t usagepct = (1.0f-(tnow_us-t1_us)*1.0e-6f / dt)*100.0f;
 
-        uint32_t t2 = micros();
         main_loop(dt);
-        uint32_t t3 = micros();
-
-        if (millis()-last_print_t > 100) {
-            last_print_t = millis();
-
-            char buf[256];
-            int n;
-            n = snprintf(buf, sizeof(buf), "1 0x%04X\n2 0x%04X\n3 0x%04X\n4 0x%04X\n\n", drv_read_register(0x1),drv_read_register(0x2),drv_read_register(0x3),drv_read_register(0x4));
-            serial_send_dma(n, buf);
-        }
     }
 
     return 0;

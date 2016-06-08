@@ -11,17 +11,10 @@
 #define TXBUF_LEN 256
 #define RXBUF_LEN 256
 
-#define SLIP_END 0xC0
-#define SLIP_ESC 0xDB
-#define SLIP_ESC_END 0xDC
-#define SLIP_ESC_ESC 0xDD
-
 static volatile char _rxbuf[RXBUF_LEN];
 static volatile struct ringbuf_t rxbuf = {_rxbuf, RXBUF_LEN, 0, 0};
 
 static char txbuf[TXBUF_LEN];
-
-static void serial_dma_tx_start(uint16_t len);
 
 void serial_init(void)
 {
