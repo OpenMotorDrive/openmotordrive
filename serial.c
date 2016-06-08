@@ -79,49 +79,16 @@ bool serial_ready_to_send(void)
     return (USART_ISR(USART1)&(1UL<<6)) != 0;
 }
 
-bool serial_send_dma_slip(uint16_t len, char* buf)
-{
-    if (serial_ready_to_send()) {
-        uint16_t i;
-        uint16_t txbuf_head = 0;
-        for (i=0; i<len; i++) {
-            if (txbuf_head >= TXBUF_LEN-2) {
-                // need at least 3 bytes of space
-                return false;
-            }
-
-            if (buf[i] == SLIP_END) {
-                txbuf[txbuf_head++] = SLIP_ESC;
-                txbuf[txbuf_head++] = SLIP_ESC_END;
-            } else if (buf[i] == SLIP_ESC) {
-                txbuf[txbuf_head++] = SLIP_ESC;
-                txbuf[txbuf_head++] = SLIP_ESC_ESC;
-            } else {
-                txbuf[txbuf_head++] = buf[i];
-            }
-        }
-        txbuf[txbuf_head++] = SLIP_END;
-        serial_dma_tx_start(txbuf_head);
-        return true;
-    }
-    return false;
-}
-
 bool serial_send_dma(uint16_t len, char* buf)
 {
     if (len < TXBUF_LEN && serial_ready_to_send()) {
         memcpy(txbuf, buf, len);
-        serial_dma_tx_start(len);
+        DMA_CMAR(DMA1,DMA_CHANNEL4) = (uint32_t)&(txbuf[0]);
+        DMA_CNDTR(DMA1,DMA_CHANNEL4) = len;
+        USART_ICR(USART1) |= 1UL<<6; // TCCF = 1
+        DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<0; // EN=1
         return true;
     }
 
     return false;
-}
-
-static void serial_dma_tx_start(uint16_t len)
-{
-    DMA_CMAR(DMA1,DMA_CHANNEL4) = (uint32_t)&(txbuf[0]);
-    DMA_CNDTR(DMA1,DMA_CHANNEL4) = len;
-    USART_ICR(USART1) |= 1UL<<6; // TCCF = 1
-    DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<0; // EN=1
 }
