@@ -1,6 +1,7 @@
 #include "param.h"
 #include "helpers.h"
 
+#include <string.h>
 #include <libopencm3/stm32/flash.h>
 
 #define PARAM_FORMAT_VERSION 0
@@ -33,16 +34,26 @@ struct param_page_t {
     struct param_journal_entry_t journal[ENTRIES_PER_PAGE];
 };
 
+struct param_info_t {
+    enum param_key_t key;
+    char name[16];
+    float default_val;
+};
+
+static const struct param_info_t param_info_table[] = {
+    {.key = PARAM_ESC_MOT_KV, .name = "ESC_MOT_KV", .default_val = 0.0f},
+    {.key = PARAM_ESC_MOT_R,  .name = "ESC_MOT_R",  .default_val = 0.0f},
+    {.key = PARAM_ESC_FOC_P,  .name = "ESC_FOC_P",  .default_val = 0.0f},
+    {.key = PARAM_ESC_FOC_I,  .name = "ESC_FOC_I",  .default_val = 0.0f},
+};
+
+#define NUM_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))
+
 static struct param_page_t page_A __attribute__((section(".param_page_a")));
 static struct param_page_t page_B __attribute__((section(".param_page_b")));
 static struct param_page_t* page_in_use = NULL;
 static bool squash_needed = false;
-
-// initialize to default param value
-static float param_cache[NUM_PARAMS] = {
-    1.0f
-};
-
+static float param_cache[NUM_PARAMS];
 static uint8_t param_has_entry[NUM_PARAMS];
 
 static struct param_page_t* param_get_most_recent_valid_page(void);
@@ -51,7 +62,7 @@ static bool param_flash_program_half_word(uint16_t* addr, uint16_t value);
 static bool param_flash_erase_page(uint32_t addr);
 static uint16_t param_get_header_data_crc16(struct param_header_data_t* header_data);
 static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple);
-static bool param_key_valid(enum param_key_t key);
+static int16_t param_get_index(enum param_key_t key);
 
 void param_erase(void) {
     flash_unlock();
@@ -81,12 +92,15 @@ void param_init(void)
         if (page_in_use->journal[i].invalid) {
             break;
         }
-        if (param_key_valid(page_in_use->journal[i].data.key) && page_in_use->journal[i].data_crc16 == param_get_tuple_crc16(&(page_in_use->journal[i].data))) {
-            param_cache[page_in_use->journal[i].data.key] = page_in_use->journal[i].data.value;
-            if (param_has_entry[page_in_use->journal[i].data.key]) {
+
+        int16_t param_idx = param_get_index(page_in_use->journal[i].data.key);
+
+        if (param_idx != -1 && page_in_use->journal[i].data_crc16 == param_get_tuple_crc16(&(page_in_use->journal[i].data))) {
+            param_cache[param_idx] = page_in_use->journal[i].data.value;
+            if (param_has_entry[param_idx]) {
                 squash_needed = true;
             }
-            param_has_entry[page_in_use->journal[i].data.key] = true;
+            param_has_entry[param_idx] = true;
         } else {
             squash_needed = true;
         }
@@ -96,14 +110,31 @@ void param_init(void)
     param_squash();
 }
 
+uint8_t param_get_num_params(void)
+{
+    return NUM_PARAMS;
+}
+
 float param_retrieve(enum param_key_t key)
 {
-    return param_cache[key];
+    return param_cache[param_get_index(key)];
+}
+
+bool param_get_by_index(uint8_t idx, char* name, float* value)
+{
+    if (idx >= NUM_PARAMS) {
+        return false;
+    }
+
+    memcpy(name, param_info_table[idx].name, sizeof(param_info_table[idx].name));
+    *value = param_cache[idx];
+    return true;
 }
 
 bool param_set_and_save(enum param_key_t key, float value)
 {
-    if (page_in_use == NULL || !param_key_valid(key)) {
+    int16_t param_idx = param_get_index(key);
+    if (page_in_use == NULL || param_idx == -1) {
         return false;
     }
 
@@ -115,21 +146,10 @@ bool param_set_and_save(enum param_key_t key, float value)
     }
 
     if(success) {
-        param_cache[key] = value;
+        param_cache[param_idx] = value;
     }
 
     return success;
-}
-
-static bool param_key_valid(enum param_key_t key)
-{
-    switch(key) {
-        case PARAM_ID_TEST:
-            return true;
-        case NUM_PARAMS:
-            break; // prevents warning
-        }
-    return false;
 }
 
 static struct param_page_t* param_get_most_recent_valid_page(void) {
@@ -162,8 +182,9 @@ void param_squash(void)
     flash_lock();
 
     for(i=0; i<NUM_PARAMS; i++) {
-        if(param_key_valid(i) && param_has_entry[i]) {
-            param_append_to_page(next_page, i, param_cache[i]);
+        int16_t k = param_info_table[i].key;
+        if(param_has_entry[k]) {
+            param_append_to_page(next_page, k, param_cache[k]);
         }
     }
 
@@ -179,6 +200,11 @@ void param_squash(void)
 static bool param_append_to_page(const struct param_page_t* page, enum param_key_t key, float value)
 {
     uint8_t i=0;
+    int16_t param_idx = param_get_index(key);
+
+    if (param_idx == -1) {
+        return false;
+    }
 
     struct param_journal_entry_t entry;
 
@@ -212,10 +238,11 @@ static bool param_append_to_page(const struct param_page_t* page, enum param_key
         param_flash_program_half_word(&(dest_buf[i]), src_buf[i]);
     }
     flash_lock();
-    if (param_has_entry[key]) {
+
+    if (param_has_entry[param_idx]) {
         squash_needed = true;
     }
-    param_has_entry[key] = true;
+    param_has_entry[param_idx] = true;
 
     return true;
 }
@@ -270,4 +297,15 @@ static bool param_flash_erase_page(uint32_t addr)
     FLASH_CR &= ~FLASH_CR_PER;
 
     return ret;
+}
+
+static int16_t param_get_index(enum param_key_t key)
+{
+    uint8_t i;
+    for(i=0; i<NUM_PARAMS; i++) {
+        if(param_info_table[i].key == key) {
+            return i;
+        }
+    }
+    return -1;
 }
