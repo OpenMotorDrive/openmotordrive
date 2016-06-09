@@ -26,30 +26,23 @@
 #include "encoder.h"
 
 static void idle_task(void) {
-    // will read UART and process commands here
-    char byte;
-    if (serial_recv_peek(&byte)) {
-        byte += 1;
-        if (serial_send_dma(1, &byte)) {
-            serial_recv_pop(&byte);
-        }
-    }
     encoder_read_angle();
 }
 
 static void main_loop(float dt) {
     motor_update_state(dt);
-//     static float id_ref_filt;
-//     const float tc = 0.002f;
-//     const float ang_P = 20.0f;
-//     const float ang_D = 0.1f;
-//     float alpha = dt/(dt+tc);
+
+    static float id_ref_filt;
+    const float tc = 0.002f;
+    const float ang_P = 20.0f;
+    const float ang_D = 0.1f;
+    float alpha = dt/(dt+tc);
 //     float pos_dem = M_PI_F/2.0f*sinf(2.0f*2.0f*M_PI_F*millis()*1.0e-3f);
-//     float pos_dem = (millis()/500)%2 ? 0.0f : M_PI_F/2.0f;
-//     float pos_dem = 0.0f;
-//     id_ref_filt += ((wrap_pi(pos_dem-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - id_ref_filt) * alpha;
-//     motor_set_id_ref(id_ref_filt);
-    motor_set_id_ref(0.5f);
+     float pos_dem = (millis()/1000)%2 == 0 ? 0.0f : M_PI_F/2.0f;
+//    float pos_dem = 0.0f;
+    id_ref_filt += ((wrap_pi(pos_dem-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - id_ref_filt) * alpha;
+    motor_set_id_ref(id_ref_filt);
+//     motor_set_id_ref(sinf(2.0f*2.0f*M_PI_F*millis()*1.0e-3f));
 
     motor_run_commutation(dt);
 

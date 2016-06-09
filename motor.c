@@ -39,7 +39,6 @@ struct {
     uint32_t start_time_us;
     uint8_t step;
     float mech_theta_0;
-    float elec_theta_0;
 } encoder_calibration_state;
 
 struct curr_pid_param_s iq_pid_param;
@@ -142,7 +141,6 @@ void motor_run_commutation(float dt)
                     theta = 0.0f;
                     if (t > 1.0f) {
                         encoder_calibration_state.mech_theta_0 = mech_theta_m;
-                        encoder_calibration_state.elec_theta_0 = atan2f(ibeta_m,ialpha_m);
                         encoder_calibration_state.step = 1;
                     }
                     break;
@@ -157,12 +155,17 @@ void motor_run_commutation(float dt)
                         // rotating the field in the positive direction should have rotated the encoder in the positive direction too
                         swap_phases = angle_diff < 0;
 
-                        // correct for poor impedence matching by measuring the actual electrical angle
-                        elec_theta_bias = (swap_phases?1.0f:-1.0f)*wrap_pi(elec_rots_per_mech_rot * encoder_calibration_state.mech_theta_0 - encoder_calibration_state.elec_theta_0);
+                        // update the adc measurements because swap_phases could have changed
+                        retrieve_adc_measurements();
+
+                        // set the electrical angle bias
+                        // 180 degrees out was necessary for positive id = positive rotation
+                        elec_theta_bias = wrap_pi(elec_theta_bias + atan2f(-id_est, -iq_est));
 
                         // exit the calibration mode
                         motor_set_mode(MOTOR_MODE_DISABLED);
                     }
+
                     break;
 
             }
@@ -245,11 +248,16 @@ static void retrieve_adc_measurements(void)
     vbatt_m = adc_get_vsense_v()*vsense_div;
 
     // retrieve current sense amplifier measurement
-    float csa_v_a, csa_v_b, csa_v_c;
-    adc_get_csa_v(&csa_v_a, &csa_v_b, &csa_v_c);
-    ia_m = (csa_v_a-csa_cal[0])/(csa_G*csa_R);
-    ib_m = (csa_v_b-csa_cal[1])/(csa_G*csa_R);
-    ic_m = (csa_v_c-csa_cal[2])/(csa_G*csa_R);
+    float csa_v_0, csa_v_1, csa_v_2;
+    adc_get_csa_v(&csa_v_0, &csa_v_1, &csa_v_2);
+    ia_m = (csa_v_0-csa_cal[0])/(csa_G*csa_R);
+    if (!swap_phases) {
+        ib_m = (csa_v_1-csa_cal[1])/(csa_G*csa_R);
+        ic_m = (csa_v_2-csa_cal[2])/(csa_G*csa_R);
+    } else {
+        ib_m = (csa_v_2-csa_cal[2])/(csa_G*csa_R);
+        ic_m = (csa_v_1-csa_cal[1])/(csa_G*csa_R);
+    }
 }
 
 static void retrieve_encoder_measurement(void)
