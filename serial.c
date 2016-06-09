@@ -42,7 +42,7 @@ void serial_init(void)
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<4; // DIR=1 (read from memory)
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<7; // MINC=1
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<1; // TCIE=1
-    nvic_enable_irq(NVIC_DMA1_CHANNEL1_IRQ);
+    nvic_enable_irq(NVIC_DMA1_CHANNEL4_IRQ);
 
     // set up recv interrupt
     nvic_enable_irq(NVIC_USART1_EXTI25_IRQ);
