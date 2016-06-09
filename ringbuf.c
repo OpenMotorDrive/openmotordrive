@@ -22,12 +22,26 @@ bool ringbuf_pop(volatile struct ringbuf_t* b, char* value)
     return true;
 }
 
-bool ringbuf_peek(volatile struct ringbuf_t* b, char* value)
+bool ringbuf_peek(volatile struct ringbuf_t* b, uint16_t idx, char* value)
 {
-    if (b->head == b->tail) {
+    if (idx >= ringbuf_size(b)) {
         return false;
     }
 
-    *value = b->buf[b->tail];
+    *value = b->buf[(b->tail+idx) % b->max_size];
     return true;
+}
+
+uint16_t ringbuf_size(volatile struct ringbuf_t* b)
+{
+    if (b->head >= b->tail) {
+        return b->head - b->tail;
+    } else {
+        return b->tail + b->max_size - b->head;
+    }
+}
+
+void ringbuf_clear(volatile struct ringbuf_t* b)
+{
+    b->tail = b->head;
 }

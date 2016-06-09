@@ -41,10 +41,13 @@ struct param_info_t {
 };
 
 static const struct param_info_t param_info_table[] = {
-    {.key = PARAM_ESC_MOT_KV, .name = "ESC_MOT_KV", .default_val = 0.0f},
-    {.key = PARAM_ESC_MOT_R,  .name = "ESC_MOT_R",  .default_val = 0.0f},
-    {.key = PARAM_ESC_FOC_P,  .name = "ESC_FOC_P",  .default_val = 0.0f},
-    {.key = PARAM_ESC_FOC_I,  .name = "ESC_FOC_I",  .default_val = 0.0f},
+    {.key = PARAM_ESC_ENC_PBIAS, .name = "ESC_ENC_PBIAS", .default_val = 0.0f},
+    {.key = PARAM_ESC_ENC_EBIAS, .name = "ESC_ENC_EBIAS", .default_val = 0.0f},
+    {.key = PARAM_ESC_MOT_KV,    .name = "ESC_MOT_KV",    .default_val = 0.0f},
+    {.key = PARAM_ESC_MOT_POLES, .name = "ESC_MOT_POLES", .default_val = 0.0f},
+    {.key = PARAM_ESC_MOT_R,     .name = "ESC_MOT_R",     .default_val = 0.0f},
+    {.key = PARAM_ESC_FOC_P,     .name = "ESC_FOC_P",     .default_val = 0.0f},
+    {.key = PARAM_ESC_FOC_I,     .name = "ESC_FOC_I",     .default_val = 0.0f},
 };
 
 #define NUM_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))
@@ -64,16 +67,26 @@ static uint16_t param_get_header_data_crc16(struct param_header_data_t* header_d
 static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple);
 static int16_t param_get_index(enum param_key_t key);
 
-void param_erase(void) {
+void param_erase(void)
+{
     flash_unlock();
     param_flash_erase_page((uint32_t)&page_A);
     param_flash_erase_page((uint32_t)&page_B);
     flash_lock();
+
+    uint8_t i;
+    for(i=0; i<NUM_PARAMS; i++) {
+        param_cache[i] = param_info_table[i].default_val;
+    }
 }
 
 void param_init(void)
 {
     uint8_t i;
+    for(i=0; i<NUM_PARAMS; i++) {
+        param_cache[i] = param_info_table[i].default_val;
+    }
+
     page_in_use = param_get_most_recent_valid_page();
 
     if (page_in_use == NULL) {
@@ -117,10 +130,23 @@ uint8_t param_get_num_params(void)
 
 float param_retrieve(enum param_key_t key)
 {
-    return param_cache[param_get_index(key)];
+    return param_retrieve_by_index(param_get_index(key));
 }
 
-bool param_get_by_index(uint8_t idx, char* name, float* value)
+float param_retrieve_by_index(uint16_t idx)
+{
+    if (idx >= NUM_PARAMS) {
+        return 0.0f;
+    }
+    return param_cache[idx];
+}
+
+bool param_index_in_range(uint8_t idx)
+{
+    return idx < NUM_PARAMS;
+}
+
+bool param_get_name_value_by_index(uint8_t idx, char* name, float* value)
 {
     if (idx >= NUM_PARAMS) {
         return false;
@@ -222,7 +248,7 @@ static bool param_append_to_page(const struct param_page_t* page, enum param_key
         if (page->journal[i].invalid) {
             break;
         }
-        already_set = page->journal[i].data.value == entry.data.value;
+        already_set = page->journal[i].data.key == entry.data.key && page->journal[i].data.value == entry.data.value && page->journal[i].data_crc16 == entry.data_crc16;
         i++;
     }
     if (already_set) {

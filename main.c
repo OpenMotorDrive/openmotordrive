@@ -18,6 +18,7 @@
 #include "init.h"
 #include "helpers.h"
 #include "serial.h"
+#include "serial_protocol.h"
 #include "param.h"
 #include "adc.h"
 #include "pwm.h"
@@ -49,6 +50,8 @@ static void main_loop(float dt) {
     if (motor_get_mode() == MOTOR_MODE_DISABLED) {
         motor_set_mode(MOTOR_MODE_FOC_CURRENT);
     }
+
+    serial_protocol_update();
 }
 
 int main(void)

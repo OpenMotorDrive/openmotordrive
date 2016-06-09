@@ -57,14 +57,9 @@ void usart1_exti25_isr(void)
     }
 }
 
-bool serial_recv_peek(char* byte)
+volatile struct ringbuf_t* serial_get_recv_buf(void)
 {
-    return byte && ringbuf_peek(&rxbuf, byte);
-}
-
-bool serial_recv_pop(char* byte)
-{
-    return byte && ringbuf_pop(&rxbuf, byte);
+    return &rxbuf;
 }
 
 bool serial_ready_to_send(void)
