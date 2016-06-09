@@ -41,12 +41,23 @@ void serial_init(void)
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 0b00UL<<8; // PSIZE 8 bits
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<4; // DIR=1 (read from memory)
     DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<7; // MINC=1
+    DMA_CCR(DMA1,DMA_CHANNEL4) |= 1UL<<1; // TCIE=1
+    nvic_enable_irq(NVIC_DMA1_CHANNEL1_IRQ);
 
     // set up recv interrupt
     nvic_enable_irq(NVIC_USART1_EXTI25_IRQ);
     USART_CR1(USART1) |= 1UL<<5; // RXNEIE=1
 
     usart_enable(USART1);
+}
+
+void dma1_channel4_isr(void)
+{
+    if ((DMA_ISR(DMA1)&(1UL<<13)) != 0) {
+        // TCIF4 is asserted
+        DMA_CCR(DMA1,DMA_CHANNEL4) &= ~(1UL<<0); // EN=0
+        DMA_IFCR(DMA1) |= 1UL<<13; // clear interrupt flag
+    }
 }
 
 void usart1_exti25_isr(void)
@@ -57,21 +68,39 @@ void usart1_exti25_isr(void)
     }
 }
 
-volatile struct ringbuf_t* serial_get_recv_buf(void)
+volatile struct ringbuf_t* serial_get_rxbuf(void)
 {
     return &rxbuf;
 }
 
+char* serial_get_txbuf(void)
+{
+    return txbuf;
+}
+
+uint16_t serial_get_txbuf_len(void)
+{
+    return TXBUF_LEN;
+}
+
 bool serial_ready_to_send(void)
 {
-    return (USART_ISR(USART1)&(1UL<<6)) != 0;
+    return (DMA_CCR(DMA1,DMA_CHANNEL4) & (1UL<<0)) == 0;
 }
 
 bool serial_send_dma(uint16_t len, char* buf)
 {
-    if (len < TXBUF_LEN && serial_ready_to_send()) {
-        DMA_CCR(DMA1,DMA_CHANNEL4) &= ~(1UL<<0); // EN=0
+    if (len <= TXBUF_LEN && serial_ready_to_send()) {
         memcpy(txbuf, buf, len);
+        return serial_send_dma_preloaded(len);
+    }
+
+    return false;
+}
+
+bool serial_send_dma_preloaded(uint16_t len)
+{
+    if (len <= TXBUF_LEN && serial_ready_to_send()) {
         DMA_CMAR(DMA1,DMA_CHANNEL4) = (uint32_t)&(txbuf[0]);
         DMA_CNDTR(DMA1,DMA_CHANNEL4) = len;
         USART_ICR(USART1) |= 1UL<<6; // TCCF = 1

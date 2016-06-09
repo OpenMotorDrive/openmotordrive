@@ -21,7 +21,7 @@ static void parse_frame(void);
 void serial_protocol_update(void)
 {
     uint16_t i;
-    volatile struct ringbuf_t* rxbuf = serial_get_recv_buf();
+    volatile struct ringbuf_t* rxbuf = serial_get_rxbuf();
     uint16_t rxbuf_size = ringbuf_size(rxbuf);
 
     for(i=0; i<rxbuf_size; i++) {
@@ -89,14 +89,16 @@ static void parse_frame(void)
 
 static bool serial_protocol_send_frame(char* buf, uint16_t len)
 {
-    char encoded[256];
+    if (!serial_ready_to_send()) {
+        return false;
+    }
     int32_t encoded_len;
-    encoded_len = encode_slip(buf, len, encoded, 256);
+    encoded_len = encode_slip(buf, len, serial_get_txbuf(), serial_get_txbuf_len());
     if (encoded_len == -1) {
         return false;
     }
 
-    return serial_send_dma(encoded_len, encoded);
+    return serial_send_dma_preloaded(encoded_len);
 }
 
 static int32_t encode_slip(char* buf_in, uint16_t len_in, char* buf_out, uint16_t max_len_out)
