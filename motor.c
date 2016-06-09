@@ -138,23 +138,24 @@ void motor_run_commutation(float dt)
 
             switch(encoder_calibration_state.step) {
                 case 0:
-                    // the motor is given 0.5 seconds to settle
+                    // the motor is given 1 second to settle
                     theta = 0.0f;
-                    if (t > 0.5f) {
+                    if (t > 1.0f) {
                         encoder_calibration_state.mech_theta_0 = mech_theta_m;
                         encoder_calibration_state.elec_theta_0 = atan2f(ibeta_m,ialpha_m);
                         encoder_calibration_state.step = 1;
                     }
                     break;
                 case 1:
-                    // theta rotates to 90deg at the 1.5 second mark and is given 0.25 seconds to settle
-                    theta = constrain_float(M_PI_F/2.0f * (t-0.5f)/1.0f, 0.0f, M_PI_F/2.0f);
-                    if (t > 1.75f) {
+                    // theta rotates to 90deg at the 2.0 second mark and is given 0.25 seconds to settle
+                    theta = constrain_float(M_PI_F/2.0f * (t-1.0f)/1.0f, 0.0f, M_PI_F/2.0f);
+                    if (t > 2.25f) {
                         // elec_rots_per_mech_rot = delta_elec_angle/delta_mech_angle
-                        elec_rots_per_mech_rot = (uint8_t)((M_PI_F/2.0f)/fabsf(wrap_pi(mech_theta_m - encoder_calibration_state.mech_theta_0)) + 0.5f);
+                        float angle_diff = fabsf(wrap_pi(mech_theta_m - encoder_calibration_state.mech_theta_0));
+                        elec_rots_per_mech_rot = (uint8_t)((M_PI_F/2.0f)/fabsf(angle_diff) + 0.5f);
 
                         // rotating the field in the positive direction should have rotated the encoder in the positive direction too
-                        swap_phases = mech_theta_m < encoder_calibration_state.mech_theta_0;
+                        swap_phases = angle_diff < 0;
 
                         // correct for poor impedence matching by measuring the actual electrical angle
                         elec_theta_bias = (swap_phases?1.0f:-1.0f)*wrap_pi(elec_rots_per_mech_rot * encoder_calibration_state.mech_theta_0 - encoder_calibration_state.elec_theta_0);

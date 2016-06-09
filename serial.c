@@ -75,6 +75,7 @@ bool serial_ready_to_send(void)
 bool serial_send_dma(uint16_t len, char* buf)
 {
     if (len < TXBUF_LEN && serial_ready_to_send()) {
+        DMA_CCR(DMA1,DMA_CHANNEL4) &= ~(1UL<<0); // EN=0
         memcpy(txbuf, buf, len);
         DMA_CMAR(DMA1,DMA_CHANNEL4) = (uint32_t)&(txbuf[0]);
         DMA_CNDTR(DMA1,DMA_CHANNEL4) = len;
