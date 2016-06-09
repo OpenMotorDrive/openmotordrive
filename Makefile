@@ -1,4 +1,4 @@
-.PHONY: all clean
+.PHONY: all clean upload libopencm3
 
 GCC_DIR := /opt/gcc-arm-none-eabi-4_9-2015q3
 LIBOPENCM3_DIR := libopencm3
@@ -16,16 +16,16 @@ CFLAGS := -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-func
 
 OBJECTS := main.o init.o pwm.o timing.o helpers.o encoder.o drv.o adc.o serial.o curr_pid.o motor.o ringbuf.o param.o serial_protocol.o
 
-all: main.elf pre-build
+all: main.elf libopencm3
 
-pre-build:
+libopencm3:
 	+make -C libopencm3
 
 main.elf main.map: $(OBJECTS)
 	arm-none-eabi-gcc $(LDFLAGS) $(ARCH_FLAGS) $^ $(LDLIBS) -o $(BIN_NAME).elf
 
 
-%.o: %.c pre-build
+%.o: %.c libopencm3
 	arm-none-eabi-gcc $(CFLAGS) $(ARCH_FLAGS) -c $<
 
 main.bin: main.elf
