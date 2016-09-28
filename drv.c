@@ -99,3 +99,8 @@ void drv_print_register(uint8_t reg)
     }
     usart_send_blocking(USART1, '\n');
 }
+
+bool drv_get_fault(void)
+{
+    return !gpio_get(GPIOF, GPIO1);
+}
