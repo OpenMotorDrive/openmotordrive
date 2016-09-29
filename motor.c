@@ -14,7 +14,7 @@
 static uint8_t elec_rots_per_mech_rot = 7;
 static float elec_theta_bias = 0.0f;
 static bool swap_phases = false;
-static const float curr_KR = 9.0f;
+static const float curr_KR = 13.8f;
 static const float curr_KP = 10.0f;
 static const float curr_KI = 10000.0f;
 static const float vsense_div = 20.0f;
@@ -150,14 +150,16 @@ void motor_run_commutation(float dt)
                     theta = constrain_float(M_PI_F/2.0f * (t-1.0f)/1.0f, 0.0f, M_PI_F/2.0f);
                     if (t > 2.25f) {
                         // elec_rots_per_mech_rot = delta_elec_angle/delta_mech_angle
-                        float angle_diff = fabsf(wrap_pi(mech_theta_m - encoder_calibration_state.mech_theta_0));
-                        elec_rots_per_mech_rot = (uint8_t)((M_PI_F/2.0f)/fabsf(angle_diff) + 0.5f);
+                        float angle_diff = wrap_pi(mech_theta_m - encoder_calibration_state.mech_theta_0);
+                        elec_rots_per_mech_rot = (uint8_t)roundf((M_PI_F/2.0f)/fabsf(angle_diff));
 
                         // rotating the field in the positive direction should have rotated the encoder in the positive direction too
                         swap_phases = angle_diff < 0;
 
                         // update the adc measurements because swap_phases could have changed
                         retrieve_adc_measurements();
+                        transform_a_b_c_to_alpha_beta_gamma(ia_m, ib_m, ic_m, &ialpha_m, &ibeta_m, &igamma_m);
+                        transform_alpha_beta_to_d_q(ialpha_m, ibeta_m, &id_est, &iq_est);
 
                         // set the electrical angle bias
                         // 180 degrees out was necessary for positive id = positive rotation
@@ -273,7 +275,7 @@ static void update_estimates(float dt)
     const float alpha = dt/(dt+tc);
     mech_omega_est += (wrap_pi(mech_theta_m-prev_mech_theta_m)/dt - mech_omega_est) * alpha;
     prev_mech_theta_m = mech_theta_m;
-
+    
     // update the transformed current measurements
     transform_a_b_c_to_alpha_beta_gamma(ia_m, ib_m, ic_m, &ialpha_m, &ibeta_m, &igamma_m);
     transform_alpha_beta_to_d_q(ialpha_m, ibeta_m, &id_est, &iq_est);

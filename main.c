@@ -76,14 +76,14 @@ static void prg_loop(float dt) {
             if (tnow_ms-last_print_ms > 100) {
                 char buf[20];
                 int n;
-                n = sprintf(buf, "%.2f\n", encoder_get_angle_rad() * 180.0f/M_PI_F);
+                n = sprintf(buf, "% .2f\n", encoder_get_angle_rad() * 180.0f/M_PI_F);
                 serial_send_dma(n, buf);
                 last_print_ms = tnow_ms;
             }
             break;
         }
         case PROGRAM_SPIN_TEST: {
-            motor_set_id_ref(1.0f);
+            motor_set_id_ref(0.0f);
 
             if (motor_get_mode() == MOTOR_MODE_DISABLED) {
                 motor_set_mode(MOTOR_MODE_FOC_CURRENT);
@@ -93,8 +93,8 @@ static void prg_loop(float dt) {
         case PROGRAM_SERVO_TEST: {
             static float id_ref_filt;
             const float tc = 0.002f;
-            const float ang_P = 20.0f;
-            const float ang_D = 0.1f;
+            const float ang_P = 7.5f;
+            const float ang_D = 0.025f;
             float alpha = dt/(dt+tc);
             float pos_dem = (millis()/1000)%2 == 0 ? 0.0f : M_PI_F/2.0f;
             id_ref_filt += ((wrap_pi(pos_dem-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - id_ref_filt) * alpha;

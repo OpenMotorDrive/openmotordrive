@@ -11,7 +11,7 @@ enum program_t {
 };
 
 #ifndef CONFIG_PROGRAM
-#define CONFIG_PROGRAM PROGRAM_PHASE_OUTPUT_TEST
+#define CONFIG_PROGRAM PROGRAM_SERVO_TEST
 #endif
 
 #endif // CONFIG_H
