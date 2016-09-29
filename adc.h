@@ -9,5 +9,7 @@ float adc_get_vsense_v(void);
 void adc_wait_for_sample(void);
 uint8_t adc_get_smpidx(void);
 uint32_t adc_get_errcnt(void);
+float adc_get_smp_freq(void);
+float adc_get_smp_period(void);
 
 #endif // ADC_H

@@ -9,6 +9,8 @@
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/dma.h>
 
+#define SAMPLE_FREQ 18000.0f
+#define SAMPLE_PERIOD (1.0f/SAMPLE_FREQ)
 #define NUM_CONVERSIONS 6UL
 
 static volatile float csa_v[3] = {0,0,0};
@@ -168,4 +170,14 @@ uint8_t adc_get_smpidx(void)
 uint32_t adc_get_errcnt(void)
 {
     return errcnt;
+}
+
+float adc_get_smp_freq(void)
+{
+    return SAMPLE_FREQ;
+}
+
+float adc_get_smp_period(void)
+{
+    return SAMPLE_PERIOD;
 }

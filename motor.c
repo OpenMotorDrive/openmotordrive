@@ -134,6 +134,7 @@ void motor_run_commutation(float dt)
         case MOTOR_MODE_ENCODER_CALIBRATION: {
             float t = (micros() - encoder_calibration_state.start_time_us)*1.0e-6f;
             float theta = 0.0f;
+            float v = constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty);
 
             switch(encoder_calibration_state.step) {
                 case 0:
@@ -170,8 +171,8 @@ void motor_run_commutation(float dt)
 
             }
 
-            alpha = constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty) * cosf(theta);
-            beta = constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty) * sinf(theta);
+            alpha = v * cosf(theta);
+            beta = v * sinf(theta);
 
             svgen(alpha, beta, &a, &b, &c);
             a -= (1.0f-max_duty)*0.5f;
@@ -183,9 +184,9 @@ void motor_run_commutation(float dt)
             break;
         }
 
-        case MOTOR_MODE_TEST: {
+        case MOTOR_MODE_PHASE_VOLTAGE_TEST: {
             float theta = wrap_2pi(0.1f*millis()*1e-3f);
-            float v = 1.0f;//constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty);
+            float v = constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty);
 
             alpha = v * cosf(theta);
             beta = v * sinf(theta);

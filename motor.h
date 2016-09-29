@@ -8,7 +8,7 @@ enum motor_mode_t {
     MOTOR_MODE_DISABLED = 0,
     MOTOR_MODE_FOC_CURRENT,
     MOTOR_MODE_ENCODER_CALIBRATION,
-    MOTOR_MODE_TEST,
+    MOTOR_MODE_PHASE_VOLTAGE_TEST,
 };
 
 void motor_init(void);
