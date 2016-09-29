@@ -18,8 +18,8 @@ static const float curr_KR = 9.0f;
 static const float curr_KP = 10.0f;
 static const float curr_KI = 10000.0f;
 static const float vsense_div = 20.0f;
-static const float csa_G = 80.0f;
-static const float csa_R = 0.001f;
+static const float csa_G = 10.0f;
+static const float csa_R = 0.02f;
 // it takes approximately 50 timer clock cycles to sample the current sensors. PWM period is 2000 timer clock cycles
 static const float max_duty = 0.95f;
 static const float calibration_voltage = 10.0f;
@@ -185,7 +185,7 @@ void motor_run_commutation(float dt)
         }
 
         case MOTOR_MODE_PHASE_VOLTAGE_TEST: {
-            float theta = wrap_2pi(0.1f*millis()*1e-3f);
+            float theta = wrap_2pi(millis()*1e-3f);
             float v = constrain_float(calibration_voltage/vbatt_m, 0.0f, max_duty);
 
             alpha = v * cosf(theta);

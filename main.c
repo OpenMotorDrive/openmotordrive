@@ -35,7 +35,7 @@ static void prg_setup(void) {
         case PROGRAM_SPIN_TEST:
             motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
             break;
-        case PROGRAM_PHASE_VOLTAGE_TEST:
+        case PROGRAM_PHASE_OUTPUT_TEST:
             motor_set_mode(MOTOR_MODE_PHASE_VOLTAGE_TEST);
             break;
     }
@@ -47,6 +47,7 @@ static void prg_loop(float dt) {
 
     // TODO separate main files for each program
     switch(CONFIG_PROGRAM) {
+        case PROGRAM_PHASE_OUTPUT_TEST:
         case PROGRAM_PRINT_DRV_FAULTS: {
             static uint32_t last_print_ms = 0;
             uint32_t tnow_ms = millis();
@@ -54,11 +55,11 @@ static void prg_loop(float dt) {
                 char buf[200];
                 int n = 0;
                 uint8_t reg;
-                for (reg=1; reg<=5; reg++) {
+                for (reg=1; reg<=4; reg++) {
                     uint16_t reg_val = drv_read_register(reg);
                     n += sprintf(buf+n, "0x%X 0b", reg);
-                    uint8_t i;
-                    for (i=0; i<11; i++) {
+                    int8_t i;
+                    for (i=10; i>=0; i--) {
                         buf[n++] = ((reg_val>>i)&1) ? '1' : '0';
                     }
                     buf[n++] = '\n';
@@ -79,9 +80,6 @@ static void prg_loop(float dt) {
                 serial_send_dma(n, buf);
                 last_print_ms = tnow_ms;
             }
-            break;
-        }
-        case PROGRAM_PHASE_VOLTAGE_TEST: {
             break;
         }
         case PROGRAM_SPIN_TEST: {
@@ -105,6 +103,9 @@ static void prg_loop(float dt) {
             if (motor_get_mode() == MOTOR_MODE_DISABLED) {
                 motor_set_mode(MOTOR_MODE_FOC_CURRENT);
             }
+            break;
+        }
+        case PROGRAM_PRINT_INPUT_VOLTAGE: {
             break;
         }
     }

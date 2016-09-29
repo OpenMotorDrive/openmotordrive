@@ -17,7 +17,7 @@ void drv_init(void)
     drv_write_register_bits(0x5,0,3,0b1011); // high-side gate driver peak source current = 1.0A
     drv_write_register_bits(0x6,4,7,0b1010); // low-side gate driver peak sink current = 1.0A
     drv_write_register_bits(0x6,0,3,0b1011); // low-side gate driver peak source current = 1.0A
-    drv_write_register_bits(0xA,0,5,0b111111); // all CS amplifier gains = 80
+    drv_write_register_bits(0xA,0,5,0b000000); // all CS amplifier gains = 10
     drv_write_register_bits(0xA,6,7,0b00); // current shunt blanking time 00=0us 01=0.5us 10=2.5us 11=10us
     drv_write_register_bits(0xC,3,7,0b11101); // VDS comparator threshold 1.892V
 
