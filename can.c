@@ -1,5 +1,3 @@
-#define BX_CAN1_BASE BX_CAN_BASE
-
 #include <libopencm3/stm32/can.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
@@ -20,7 +18,7 @@ void canbus_init(void) {
         false,            /* TTCM: Time triggered comm mode? */
         true,             /* ABOM: Automatic bus-off management? */
         false,            /* AWUM: Automatic wakeup mode? */
-        false,            /* NART: No automatic retransmission? */
+        true,             /* NART: No automatic retransmission? */
         false,            /* RFLM: Receive FIFO locked mode? */
         false,            /* TXFP: Transmit FIFO priority? */
         CAN_BTR_SJW_1TQ,  /* Resynchronization time quanta jump width.*/

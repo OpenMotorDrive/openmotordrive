@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include "timing.h"
 #include "init.h"
@@ -24,6 +25,7 @@
 #include "drv.h"
 #include "motor.h"
 #include "encoder.h"
+#include "can.h"
 
 #include "config.h"
 
@@ -31,6 +33,7 @@
 static void prg_setup(void) {
     // TODO separate main files for each program
     switch(CONFIG_PROGRAM) {
+        case PROGRAM_CAN_SERVO:
         case PROGRAM_SERVO_TEST:
         case PROGRAM_SPIN_TEST:
             motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
@@ -39,6 +42,22 @@ static void prg_setup(void) {
             motor_set_mode(MOTOR_MODE_PHASE_VOLTAGE_TEST);
             break;
     }
+}
+
+static void prg_servo_run(float dt, float theta) {
+    static float id_ref_filt;
+    const float tc = 0.002f;
+    const float ang_P = 3.0f;
+    const float ang_D = 0.01f;
+    float alpha = dt/(dt+tc);
+
+    id_ref_filt += ((wrap_pi(theta-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - id_ref_filt) * alpha;
+    motor_set_id_ref(id_ref_filt);
+
+    if (motor_get_mode() == MOTOR_MODE_DISABLED) {
+        motor_set_mode(MOTOR_MODE_FOC_CURRENT);
+    }
+
 }
 
 // Called by the scheduler when there is new ADC data
@@ -90,22 +109,43 @@ static void prg_loop(float dt) {
             }
             break;
         }
-        case PROGRAM_SERVO_TEST: {
-            static float id_ref_filt;
-            const float tc = 0.002f;
-            const float ang_P = 7.5f;
-            const float ang_D = 0.025f;
-            float alpha = dt/(dt+tc);
-            float pos_dem = (millis()/1000)%2 == 0 ? 0.0f : M_PI_F/2.0f;
-            id_ref_filt += ((wrap_pi(pos_dem-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - id_ref_filt) * alpha;
-            motor_set_id_ref(id_ref_filt);
+        case PROGRAM_CAN_SERVO: {
+            static float theta = 0;
 
-            if (motor_get_mode() == MOTOR_MODE_DISABLED) {
-                motor_set_mode(MOTOR_MODE_FOC_CURRENT);
+            struct canbus_msg m;
+            while (canbus_recv_message(&m)) {
+                if (m.id == 500 && !m.rtr && m.dlc == 4) {
+                    memcpy(&theta, m.data, 4);
+                }
             }
+
+            prg_servo_run(dt, theta);
+
+            break;
+        }
+        case PROGRAM_SERVO_TEST: {
+            prg_servo_run(dt, (millis()/1000)%2 == 0 ? 0.0f : M_PI_F/2.0f);
+
             break;
         }
         case PROGRAM_PRINT_INPUT_VOLTAGE: {
+            break;
+        }
+        case PROGRAM_SEND_CAN_ANGLE: {
+            static uint32_t last_send_us = 0;
+            uint32_t tnow_us = micros();
+            if (tnow_us-last_send_us > 1000) {
+                struct canbus_msg m;
+                m.id = 500;
+                m.ide = false;
+                m.rtr = false;
+                m.dlc = 4;
+                float theta = encoder_get_angle_rad();
+                memcpy(m.data, &theta, 4);
+
+                canbus_send_message(&m);
+                last_send_us = tnow_us;
+            }
             break;
         }
     }
@@ -121,6 +161,7 @@ int main(void)
     clock_init();
     timing_init();
     serial_init();
+    canbus_init();
     param_init();
     spi_init();
     drv_init();
