@@ -18,6 +18,9 @@ void pwm_init(void)
     timer_set_oc_mode(TIM1, TIM_OC1, TIM_OCM_PWM2);
     timer_set_oc_mode(TIM1, TIM_OC2, TIM_OCM_PWM2);
     timer_set_oc_mode(TIM1, TIM_OC3, TIM_OCM_PWM2);
+    timer_set_oc_polarity_low(TIM1, TIM_OC1);
+    timer_set_oc_polarity_low(TIM1, TIM_OC2);
+    timer_set_oc_polarity_low(TIM1, TIM_OC3);
     timer_set_oc_mode(TIM1, TIM_OC4, TIM_OCM_PWM2);
     timer_enable_oc_output(TIM1, TIM_OC1);
     timer_enable_oc_output(TIM1, TIM_OC2);
@@ -33,9 +36,9 @@ void pwm_init(void)
 void set_phase_duty(float phaseA, float phaseB, float phaseC)
 {
     phaseA = constrain_float(phaseA, 0.0f,1.0f);
-    timer_set_oc_value(TIM1, TIM_OC1, ((TIM1_ARR-0.5f)*phaseA)+0.5f);
+    timer_set_oc_value(TIM1, TIM_OC1, roundf(TIM1_ARR*phaseA));
     phaseB = constrain_float(phaseB, 0.0f,1.0f);
-    timer_set_oc_value(TIM1, TIM_OC2, ((TIM1_ARR-0.5f)*phaseB)+0.5f);
+    timer_set_oc_value(TIM1, TIM_OC2, roundf(TIM1_ARR*phaseB));
     phaseC = constrain_float(phaseC, 0.0f,1.0f);
-    timer_set_oc_value(TIM1, TIM_OC3, ((TIM1_ARR-0.5f)*phaseC)+0.5f);
+    timer_set_oc_value(TIM1, TIM_OC3, roundf(TIM1_ARR*phaseC));
 }
