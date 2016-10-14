@@ -63,7 +63,7 @@ void motor_init(void)
 {
     // calibrate phase currents
     uint16_t i;
-    drv_write_register_bits(0xA, 8, 10, 0b111UL);
+    drv_csa_cal_mode_on();
     usleep(50);
     csa_cal[0] = 0;
     csa_cal[1] = 0;
@@ -76,7 +76,7 @@ void motor_init(void)
         csa_cal[1] += csa_v_b;
         csa_cal[2] += csa_v_c;
     }
-    drv_write_register_bits(0xA, 8, 10, 0b000UL);
+    drv_csa_cal_mode_off();
     csa_cal[0] /= 1000;
     csa_cal[1] /= 1000;
     csa_cal[2] /= 1000;

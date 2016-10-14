@@ -104,3 +104,13 @@ bool drv_get_fault(void)
 {
     return !gpio_get(GPIOF, GPIO1);
 }
+
+void drv_csa_cal_mode_on(void)
+{
+    drv_write_register_bits(0xA, 8, 10, 0b111UL);
+}
+
+void drv_csa_cal_mode_off(void)
+{
+    drv_write_register_bits(0xA, 8, 10, 0b000UL);
+}
