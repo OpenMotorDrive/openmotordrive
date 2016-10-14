@@ -206,7 +206,18 @@ void motor_run_commutation(float dt)
 
 void motor_set_mode(enum motor_mode_t mode)
 {
+    if (motor_mode == mode) {
+        return;
+    }
+
     motor_mode = mode;
+
+    if (motor_mode == MOTOR_MODE_DISABLED) {
+        drv_6_pwm_mode();
+        set_phase_duty(0.0f, 0.0f, 0.0f);
+    } else {
+        drv_3_pwm_mode();
+    }
 
     if (motor_mode == MOTOR_MODE_ENCODER_CALIBRATION) {
         encoder_calibration_state.start_time_us = micros();

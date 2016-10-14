@@ -11,5 +11,7 @@ void drv_print_register(uint8_t reg);
 bool drv_get_fault(void);
 void drv_csa_cal_mode_on(void);
 void drv_csa_cal_mode_off(void);
+void drv_6_pwm_mode(void);
+void drv_3_pwm_mode(void);
 
 #endif // DRV_H

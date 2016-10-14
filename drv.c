@@ -11,7 +11,7 @@ void drv_init(void)
     rcc_periph_clock_enable(RCC_GPIOF);
     gpio_mode_setup(GPIOF, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, GPIO1); // nFault pin
 
-    drv_write_register_bits(0x7,7,8,0b01); // 3-PWM mode
+    drv_write_register_bits(0x7,7,8,0b00); // 6-PWM mode
     drv_write_register_bits(0x9,7,7,0b1); // enable sense amplifier clamp (protects ADC pins on STM)
     drv_write_register_bits(0x5,4,7,0b1010); // high-side gate driver peak sink current = 1.0A
     drv_write_register_bits(0x5,0,3,0b1011); // high-side gate driver peak source current = 1.0A
@@ -113,4 +113,14 @@ void drv_csa_cal_mode_on(void)
 void drv_csa_cal_mode_off(void)
 {
     drv_write_register_bits(0xA, 8, 10, 0b000UL);
+}
+
+void drv_3_pwm_mode(void)
+{
+    drv_write_register_bits(0x7,7,8,0b01); // 3-PWM mode
+}
+
+void drv_6_pwm_mode(void)
+{
+    drv_write_register_bits(0x7,7,8,0b00); // 6-PWM mode
 }
