@@ -35,10 +35,10 @@ void pwm_init(void)
 
 void set_phase_duty(float phaseA, float phaseB, float phaseC)
 {
-    phaseA = constrain_float(phaseA, 0.0f,1.0f);
+    phaseA = constrain_float(phaseA, 0.0f, 1.0f);
     timer_set_oc_value(TIM1, TIM_OC1, roundf(TIM1_ARR*phaseA));
-    phaseB = constrain_float(phaseB, 0.0f,1.0f);
+    phaseB = constrain_float(phaseB, 0.0f, 1.0f);
     timer_set_oc_value(TIM1, TIM_OC2, roundf(TIM1_ARR*phaseB));
-    phaseC = constrain_float(phaseC, 0.0f,1.0f);
+    phaseC = constrain_float(phaseC, 0.0f, 1.0f);
     timer_set_oc_value(TIM1, TIM_OC3, roundf(TIM1_ARR*phaseC));
 }

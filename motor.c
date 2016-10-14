@@ -120,9 +120,9 @@ void motor_run_commutation(float dt)
             transform_d_q_to_alpha_beta(id_pid_state.output/vbatt_m, iq_pid_state.output/vbatt_m, &alpha, &beta);
 
             svgen(alpha, beta, &a, &b, &c);
-            a -= (1.0f-max_duty)*0.5f;
-            b -= (1.0f-max_duty)*0.5f;
-            c -= (1.0f-max_duty)*0.5f;
+            a += (1.0f-max_duty)*0.5f;
+            b += (1.0f-max_duty)*0.5f;
+            c += (1.0f-max_duty)*0.5f;
 
             if (!swap_phases) {
                 set_phase_duty(a, b, c);
@@ -156,14 +156,13 @@ void motor_run_commutation(float dt)
                         // rotating the field in the positive direction should have rotated the encoder in the positive direction too
                         swap_phases = angle_diff < 0;
 
-                        // update the adc measurements because swap_phases could have changed
+                        // update the adc measurements and derived values because swap_phases could have changed
                         retrieve_adc_measurements();
                         transform_a_b_c_to_alpha_beta_gamma(ia_m, ib_m, ic_m, &ialpha_m, &ibeta_m, &igamma_m);
                         transform_alpha_beta_to_d_q(ialpha_m, ibeta_m, &id_est, &iq_est);
 
                         // set the electrical angle bias
-                        // 180 degrees out was necessary for positive id = positive rotation
-                        elec_theta_bias = wrap_pi(elec_theta_bias + atan2f(-id_est, -iq_est));
+                        elec_theta_bias = wrap_pi(elec_theta_bias + atan2f(id_est, iq_est));
 
                         // exit the calibration mode
                         motor_set_mode(MOTOR_MODE_DISABLED);
@@ -177,9 +176,9 @@ void motor_run_commutation(float dt)
             beta = v * sinf(theta);
 
             svgen(alpha, beta, &a, &b, &c);
-            a -= (1.0f-max_duty)*0.5f;
-            b -= (1.0f-max_duty)*0.5f;
-            c -= (1.0f-max_duty)*0.5f;
+            a += (1.0f-max_duty)*0.5f;
+            b += (1.0f-max_duty)*0.5f;
+            c += (1.0f-max_duty)*0.5f;
 
             set_phase_duty(a, b, c);
 
@@ -194,9 +193,9 @@ void motor_run_commutation(float dt)
             beta = v * sinf(theta);
 
             svgen(alpha, beta, &a, &b, &c);
-            a -= (1.0f-max_duty)*0.5f;
-            b -= (1.0f-max_duty)*0.5f;
-            c -= (1.0f-max_duty)*0.5f;
+            a += (1.0f-max_duty)*0.5f;
+            b += (1.0f-max_duty)*0.5f;
+            c += (1.0f-max_duty)*0.5f;
 
             set_phase_duty(a, b, c);
             break;
