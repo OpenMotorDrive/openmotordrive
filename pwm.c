@@ -21,6 +21,7 @@ void pwm_init(void)
     timer_set_oc_polarity_low(TIM1, TIM_OC1);
     timer_set_oc_polarity_low(TIM1, TIM_OC2);
     timer_set_oc_polarity_low(TIM1, TIM_OC3);
+    timer_set_oc_polarity_low(TIM1, TIM_OC4);
     timer_set_oc_mode(TIM1, TIM_OC4, TIM_OCM_PWM2);
     timer_enable_oc_output(TIM1, TIM_OC1);
     timer_enable_oc_output(TIM1, TIM_OC2);
