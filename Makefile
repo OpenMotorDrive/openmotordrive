@@ -1,7 +1,5 @@
-.PHONY: all clean upload libopencm3
-
 GCC_DIR := /opt/gcc-arm-none-eabi-4_9-2015q3
-LIBOPENCM3_DIR := libopencm3
+LIBOPENCM3_DIR := submodules/libopencm3
 LDSCRIPT := stm32f3.ld
 
 ARCH_FLAGS := -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16
@@ -14,11 +12,13 @@ CFLAGS += -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-func
 
 OBJECTS := main.o init.o pwm.o timing.o helpers.o encoder.o drv.o adc.o serial.o curr_pid.o motor.o ringbuf.o param.o can.o
 
-all: build/main.elf libopencm3
+.PHONY: all
+all: build/main.elf $(LIBOPENCM3_DIR)
 
-libopencm3:
+.PHONY: $(LIBOPENCM3_DIR)
+$(LIBOPENCM3_DIR):
 	@echo "### BUILDING $@"
-	@$(MAKE) -C libopencm3
+	@$(MAKE) -C $(LIBOPENCM3_DIR)
 
 build/main.elf build/main.map: $(addprefix build/,$(OBJECTS))
 	@echo "### BUILDING $@"
@@ -26,7 +26,7 @@ build/main.elf build/main.map: $(addprefix build/,$(OBJECTS))
 	@arm-none-eabi-gcc $(LDFLAGS) $(ARCH_FLAGS) $^ $(LDLIBS) -o build/main.elf
 
 
-build/%.o: src/%.c libopencm3
+build/%.o: src/%.c $(LIBOPENCM3_DIR)
 	@echo "### BUILDING $@"
 	@mkdir -p "$(dir $@)"
 	@arm-none-eabi-gcc $(CFLAGS) $(ARCH_FLAGS) -c $< -o $@
@@ -36,10 +36,12 @@ build/main.bin: build/main.elf
 	@mkdir -p "$(dir $@)"
 	@arm-none-eabi-objcopy -O binary build/main.elf build/main.bin
 
+.PHONY: upload
 upload: build/main.bin
 	@echo "### UPLOADING"
 	@st-flash write build/main.bin 0x8000000
 
+.PHONY: clean
 clean:
-	@$(MAKE) -C libopencm3 clean
+	@$(MAKE) -C $(LIBOPENCM3_DIR) clean
 	@rm -rf build
