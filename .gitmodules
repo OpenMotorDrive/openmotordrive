@@ -1,3 +1,6 @@
 [submodule "libopencm3"]
 	path = submodules/libopencm3
 	url = git@github.com:jschall/libopencm3.git
+[submodule "submodules/libcanard"]
+	path = submodules/libcanard
+	url = git@github.com:UAVCAN/libcanard.git
