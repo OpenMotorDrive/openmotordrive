@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TIMING_H
-#define TIMING_H
+#pragma once
 
 #include <stdint.h>
 
@@ -22,5 +21,3 @@ void timing_init(void);
 uint32_t millis(void);
 uint32_t micros(void);
 void usleep(uint32_t delay);
-
-#endif // TIMING_H

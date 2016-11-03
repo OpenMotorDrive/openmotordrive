@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CAN_H
-#define CAN_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -31,6 +30,3 @@ void canbus_init(void);
 void canbus_update(void);
 bool canbus_send_message(struct canbus_msg* msg);
 bool canbus_recv_message(struct canbus_msg* msg);
-
-
-#endif // CAN_H

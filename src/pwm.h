@@ -13,12 +13,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PWM_H
-#define PWM_H
+#pragma once
 
 #include <stdint.h>
 
 void pwm_init(void);
 void set_phase_duty(float phaseA, float phaseB, float phaseC);
-
-#endif // PWM_H

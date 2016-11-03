@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef USART_H
-#define USART_H
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -28,5 +27,3 @@ bool serial_ready_to_send(void);
 char* serial_get_txbuf(void);
 uint16_t serial_get_txbuf_len(void);
 volatile struct ringbuf_t* serial_get_rxbuf(void);
-
-#endif // USART_H

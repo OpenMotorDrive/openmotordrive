@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CURR_PID_H
-#define CURR_PID_H
+#pragma once
 
 #include <stdbool.h>
 
@@ -36,5 +35,3 @@ struct curr_pid_state_s {
 };
 
 void curr_pid_run(struct curr_pid_param_s *param, struct curr_pid_state_s *state);
-
-#endif // CURR_PID_H

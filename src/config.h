@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CONFIG_H
-#define CONFIG_H
+#pragma once
 
 enum program_t {
     PROGRAM_SERVO_TEST,
@@ -30,5 +29,3 @@ enum program_t {
 #ifndef CONFIG_PROGRAM
 #define CONFIG_PROGRAM PROGRAM_CAN_SERVO
 #endif
-
-#endif // CONFIG_H

@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HELPERS_H
-#define HELPERS_H
+#pragma once
 
 #include <math.h>
 #include <stdint.h>
@@ -28,5 +27,3 @@ float constrain_float(float val, float min_val, float max_val);
 float wrap_2pi(float val);
 float wrap_pi(float val);
 uint16_t crc16_ccitt(const char *buf, uint32_t len, uint16_t crc);
-
-#endif // HELPERS_H

@@ -13,11 +13,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef INIT_H
-#define INIT_H
+#pragma once
 
 void clock_init(void);
 void usart_init(void);
 void spi_init(void);
-
-#endif // INIT_H

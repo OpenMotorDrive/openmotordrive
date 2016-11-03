@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef ADC_H
-#define ADC_H
+#pragma once
 
 #include <stdint.h>
 
@@ -26,5 +25,3 @@ uint8_t adc_get_smpidx(void);
 uint32_t adc_get_errcnt(void);
 float adc_get_smp_freq(void);
 float adc_get_smp_period(void);
-
-#endif // ADC_H

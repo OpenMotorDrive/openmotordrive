@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef RINGBUF_H
-#define RINGBUF_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -32,5 +31,3 @@ bool ringbuf_peek(volatile struct ringbuf_t* buf, uint16_t idx, char* value);
 bool ringbuf_pop(volatile struct ringbuf_t* buf, char* value);
 void ringbuf_clear(volatile struct ringbuf_t* buf);
 uint16_t ringbuf_size(volatile struct ringbuf_t* b);
-
-#endif // RINGBUF_H

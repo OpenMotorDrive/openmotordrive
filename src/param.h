@@ -13,8 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PARAM_H
-#define PARAM_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -38,5 +37,3 @@ void param_erase(void);
 void param_squash(void);
 uint8_t param_get_num_params(void);
 bool param_index_in_range(uint8_t idx);
-
-#endif // PARAM_H
