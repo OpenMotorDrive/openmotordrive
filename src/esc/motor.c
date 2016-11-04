@@ -13,17 +13,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "motor.h"
+#include <esc/motor.h>
 
 #include <string.h>
-#include "helpers.h"
-#include "pwm.h"
-#include "adc.h"
-#include "drv.h"
-#include "encoder.h"
-#include "timing.h"
-#include "curr_pid.h"
-#include "serial.h"
+#include <esc/helpers.h>
+#include <esc/pwm.h>
+#include <esc/adc.h>
+#include <esc/drv.h>
+#include <esc/encoder.h>
+#include <esc/timing.h>
+#include <esc/curr_pid.h>
+#include <esc/serial.h>
 
 // config things - to be made params later
 static uint8_t elec_rots_per_mech_rot = 7;

@@ -13,13 +13,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "pwm.h"
+#include <esc/pwm.h>
+#include <esc/helpers.h>
 
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/nvic.h>
-#include "helpers.h"
 
 void pwm_init(void)
 {

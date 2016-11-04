@@ -9,9 +9,9 @@ LDFLAGS := --static -nostartfiles -L$(LIBOPENCM3_DIR)/lib -T$(LDSCRIPT) -Wl,-Map
 
 LDLIBS := -lopencm3_stm32f3 -lm -Wl,--start-group -lc -lgcc -lnosys -Wl,--end-group
 
-CFLAGS += -std=gnu11 -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-function-declaration -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes -fno-common -ffunction-sections -fdata-sections -MD -Wall -Wundef -I$(LIBOPENCM3_DIR)/include -I$(LIBCANARD_DIR) -DSTM32F3
+CFLAGS += -std=gnu11 -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-function-declaration -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes -fno-common -ffunction-sections -fdata-sections -MD -Wall -Wundef -Isrc -I$(LIBOPENCM3_DIR)/include -I$(LIBCANARD_DIR) -DSTM32F3
 
-OBJS := main.o init.o pwm.o timing.o helpers.o encoder.o drv.o adc.o serial.o curr_pid.o motor.o ringbuf.o param.o can.o
+OBJS := main.o esc/programs.o programs/servo_test.o programs/spin_test.o programs/print_input_voltage.o programs/print_encoder.o programs/phase_output_test.o programs/can_servo.o programs/can_encoder.o esc/init.o esc/pwm.o esc/timing.o esc/helpers.o esc/encoder.o esc/drv.o esc/adc.o esc/serial.o esc/curr_pid.o esc/motor.o esc/ringbuf.o esc/param.o esc/can.o
 OBJS := $(addprefix build/,$(OBJS))
 
 .PHONY: all
@@ -28,7 +28,7 @@ build/main.elf build/main.map: $(OBJS) build/canard.o
 	arm-none-eabi-gcc $(LDFLAGS) $(ARCH_FLAGS) $^ $(LDLIBS) -o build/main.elf
 
 -include $(OBJS:.o=.d)
-build/%.o: src/%.c
+build/%.o: src/%.c $(LIBOPENCM3_DIR)
 	@echo "### BUILDING $@"
 	@mkdir -p "$(dir $@)"
 	@arm-none-eabi-gcc $(CFLAGS) $(ARCH_FLAGS) -c $< -o $@

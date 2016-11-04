@@ -16,7 +16,7 @@
 #include <libopencm3/stm32/can.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
-#include "can.h"
+#include <esc/can.h>
 
 void canbus_init(void) {
     // Enable peripheral clock

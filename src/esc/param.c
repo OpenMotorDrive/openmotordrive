@@ -13,8 +13,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "param.h"
-#include "helpers.h"
+#include <esc/param.h>
+#include <esc/helpers.h>
 
 #include <string.h>
 #include <libopencm3/stm32/flash.h>

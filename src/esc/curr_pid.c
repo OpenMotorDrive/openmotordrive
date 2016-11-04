@@ -13,7 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "curr_pid.h"
+#include <esc/curr_pid.h>
 
 #include <string.h>
 

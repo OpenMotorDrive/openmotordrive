@@ -13,8 +13,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "serial.h"
-#include "ringbuf.h"
+#include <esc/serial.h>
+#include <esc/ringbuf.h>
 
 #include <string.h>
 #include <libopencm3/stm32/rcc.h>

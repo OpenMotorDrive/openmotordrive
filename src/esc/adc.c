@@ -13,8 +13,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "adc.h"
-#include "timing.h"
+#include <esc/adc.h>
+#include <esc/timing.h>
 #include <string.h>
 #include <stdbool.h>
 #include <libopencm3/stm32/rcc.h>

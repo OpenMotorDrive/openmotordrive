@@ -15,7 +15,9 @@
 
 #pragma once
 
-enum program_t {
+#include <stdint.h>
+
+enum program_id_t {
     PROGRAM_SERVO_TEST,
     PROGRAM_SPIN_TEST,
     PROGRAM_PHASE_OUTPUT_TEST,
@@ -23,9 +25,8 @@ enum program_t {
     PROGRAM_PRINT_INPUT_VOLTAGE,
     PROGRAM_PRINT_ENCODER,
     PROGRAM_CAN_SERVO,
-    PROGRAM_SEND_CAN_ANGLE
+    PROGRAM_CAN_ENCODER
 };
 
-#ifndef CONFIG_PROGRAM
-#define CONFIG_PROGRAM PROGRAM_CAN_SERVO
-#endif
+void program_init(enum program_id_t id);
+void program_event_adc_sample(float dt);
