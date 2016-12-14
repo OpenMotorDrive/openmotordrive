@@ -1,4 +1,6 @@
-/*
+#!/bin/bash
+
+gpl_header="/*
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -13,10 +15,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+"
 
-#pragma once
-
-#include <stdbool.h>
-
-bool semihost_debug_enabled(void);
-void semihost_debug_printf(const char *fmt, ...);
+for f in $(find -regextype posix-extended -regex "(.+\.c|.+\.h)" | xargs grep -L "This program is free software") ; do
+    echo "Prepending GPL header to $f"
+    echo "$gpl_header" > /tmp/out.tmp && cat $f >> /tmp/out.tmp && cat /tmp/out.tmp > $f
+done
