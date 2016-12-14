@@ -28,8 +28,8 @@
 #include <esc/motor.h>
 #include <esc/encoder.h>
 #include <esc/can.h>
-
 #include <esc/programs.h>
+#include <stdio.h>
 
 #ifndef CONFIG_PROGRAM
     #define CONFIG_PROGRAM PROGRAM_SERVO_TEST
