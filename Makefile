@@ -9,7 +9,7 @@ LDFLAGS := --static -nostartfiles -L$(LIBOPENCM3_DIR)/lib -T$(LDSCRIPT) -Wl,--gc
 
 LDLIBS := -lopencm3_stm32f3 -lm -Wl,--start-group -lc -lgcc -lrdimon -Wl,--end-group
 
-CFLAGS += -std=gnu11 -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-function-declaration -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes -fno-common -ffunction-sections -fdata-sections -MD -Wall -Wundef -Isrc -I$(LIBOPENCM3_DIR)/include -I$(LIBCANARD_DIR) -DSTM32F3
+CFLAGS += -std=gnu11 -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-function-declaration -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes -fsingle-precision-constant -fno-common -ffunction-sections -fdata-sections -MD -Wall -Wundef -Isrc -I$(LIBOPENCM3_DIR)/include -I$(LIBCANARD_DIR) -DSTM32F3
 
 COMMON_OBJS := $(addprefix build/,$(addsuffix .o,$(basename $(shell find src/esc -name "*.c"))))
 PROGS := $(addprefix build/bin/,$(addsuffix .elf,$(notdir $(basename $(shell ls src/programs/*.c)))))
@@ -21,6 +21,7 @@ build/bin/%.elf: $(COMMON_OBJS) build/canard.o build/src/programs/%.o
 	@echo "### BUILDING $@"
 	@mkdir -p "$(dir $@)"
 	@arm-none-eabi-gcc $(LDFLAGS) $(ARCH_FLAGS) $^ $(LDLIBS) -o $@
+	@arm-none-eabi-size $@
 
 build/%.bin: build/%.elf
 	@echo "### BUILDING $@"
@@ -44,9 +45,9 @@ $(LIBOPENCM3_DIR):
 	@$(MAKE) -C $(LIBOPENCM3_DIR)
 
 .PHONY: upload
-upload: build/main.bin
+%-upload: build/bin/%.elf
 	@echo "### UPLOADING"
-	@st-flash write build/main.bin 0x8000000
+	@openocd -f openocd.cfg -c "program $< verify reset exit"
 
 .PHONY: clean
 clean:
