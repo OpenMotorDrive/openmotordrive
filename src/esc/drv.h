@@ -23,6 +23,7 @@ uint16_t drv_read_register(uint8_t reg);
 void drv_write_register(uint8_t reg, uint16_t val);
 void drv_write_register_bits(uint8_t reg, uint8_t rng_begin, uint8_t rng_end, uint16_t val);
 void drv_print_register(uint8_t reg);
+void drv_print_faults(void);
 bool drv_get_fault(void);
 void drv_csa_cal_mode_on(void);
 void drv_csa_cal_mode_off(void);

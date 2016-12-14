@@ -53,6 +53,8 @@ int main(void)
 
     program_init(CONFIG_PROGRAM);
 
+    uint32_t last_print_ms = 0;
+
     // main loop
     while(1) {
         // wait specified time for adc measurement
@@ -66,6 +68,13 @@ int main(void)
         float dt = d_smp*adc_get_smp_period();
 
         program_event_adc_sample(dt);
+
+        uint32_t tnow_ms = millis();
+        if (tnow_ms-last_print_ms >= 2000) {
+            drv_print_faults();
+            last_print_ms = tnow_ms;
+            drv_write_register_bits(0x9,1,1,0b1); // clear faults
+        }
     }
 
     return 0;

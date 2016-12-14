@@ -9,6 +9,10 @@
 extern void initialise_monitor_handles(void);
 static bool initialized = false;
 
+bool semihost_debug_enabled(void) {
+    return SWD_CONNECTED;
+}
+
 void semihost_debug_printf(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);

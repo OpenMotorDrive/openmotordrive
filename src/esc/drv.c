@@ -15,11 +15,124 @@
 
 #include <esc/drv.h>
 #include <esc/timing.h>
+#include <esc/semihost_debug.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 #include <libopencm3/stm32/usart.h>
 #include <stdio.h>
+
+enum drv_reg0x1_bit_t {
+    DRV_REG0x1_BIT_OTW=0,
+    DRV_REG0x1_BIT_TEMP_FLAG3=1,
+    DRV_REG0x1_BIT_TEMP_FLAG2=2,
+    DRV_REG0x1_BIT_TEMP_FLAG1=3,
+    DRV_REG0x1_BIT_VCHP_UVFL=4,
+    DRV_REG0x1_BIT_VDS_STATUS=5,
+    DRV_REG0x1_BIT_PVDD_OVFL=6,
+    DRV_REG0x1_BIT_PVDD_UVFL=7,
+    DRV_REG0x1_BIT_TEMP_FLAG4=8,
+    // 9 reserved
+    DRV_REG0x1_BIT_FAULT=10,
+};
+
+enum drv_reg0x2_bit_t {
+    DRV_REG0x2_BIT_SNS_A_OCP=0,
+    DRV_REG0x2_BIT_SNS_B_OCP=1,
+    DRV_REG0x2_BIT_SNS_C_OCP=2,
+    // 3 reserved
+    // 4 reserved
+    DRV_REG0x2_BIT_VDS_LC=5,
+    DRV_REG0x2_BIT_VDS_HC=6,
+    DRV_REG0x2_BIT_VDS_LB=7,
+    DRV_REG0x2_BIT_VDS_HB=8,
+    DRV_REG0x2_BIT_VDS_LA=9,
+    DRV_REG0x2_BIT_VDS_HA=10,
+};
+
+enum drv_reg0x3_bit_t {
+    DRV_REG0x3_BIT_VCPH_OVLO_ABS=0,
+    DRV_REG0x3_BIT_VCPH_OVLO=1,
+    DRV_REG0x3_BIT_VCPH_UVLO2=2,
+    // 3 reserved
+    DRV_REG0x3_BIT_VCP_LSD_UVLO2=4,
+    DRV_REG0x3_BIT_AVDD_UVLO=5,
+    DRV_REG0x3_BIT_VREG_UV=6,
+    // 7 reserved
+    DRV_REG0x3_BIT_OTSD=8,
+    DRV_REG0x3_BIT_WD_FAULT=9,
+    DRV_REG0x3_BIT_PVDD_UVLO2=10,
+};
+
+enum drv_reg0x4_bit_t {
+    // 0 reserved
+    // 1 reserved
+    // 2 reserved
+    // 3 reserved
+    // 4 reserved
+    DRV_REG0x4_BIT_VGS_LC=5,
+    DRV_REG0x4_BIT_VGS_HC=6,
+    DRV_REG0x4_BIT_VGS_LB=7,
+    DRV_REG0x4_BIT_VGS_HB=8,
+    DRV_REG0x4_BIT_VGS_LA=9,
+    DRV_REG0x4_BIT_VGS_HA=10,
+};
+
+static const char* drv_reg0x1_names[] = {
+    "OTW",
+    "TEMP_FLAG3",
+    "TEMP_FLAG2",
+    "TEMP_FLAG1",
+    "VCHP_UVFL",
+    "VDS_STATUS",
+    "PVDD_OVFL",
+    "PVDD_UVFL",
+    "TEMP_FLAG4",
+    "reg1bit9",
+    "FAULT",
+};
+
+static const char* drv_reg0x2_names[] = {
+    "SNS_A_OCP",
+    "SNS_B_OCP",
+    "SNS_C_OCP",
+    "reg2bit3",
+    "reg2bit4",
+    "VDS_LC",
+    "VDS_HC",
+    "VDS_LB",
+    "VDS_HB",
+    "VDS_LA",
+    "VDS_HA",
+};
+
+static const char* drv_reg0x3_names[] = {
+    "VCPH_OVLO_ABS",
+    "VCPH_OVLO",
+    "VCPH_UVLO2",
+    "reg3bit3",
+    "VCP_LSD_UVLO2",
+    "AVDD_UVLO",
+    "VREG_UV",
+    "reg3bit7",
+    "OTSD",
+    "WD_FAULT",
+    "PVDD_UVLO2",
+};
+
+static const char* drv_reg0x4_names[] = {
+    "reg4bit0",
+    "reg4bit1",
+    "reg4bit2",
+    "reg4bit3",
+    "reg4bit4",
+    "VGS_LC",
+    "VGS_HC",
+    "VGS_LB",
+    "VGS_HB",
+    "VGS_LA",
+    "VGS_HA",
+};
 
 void drv_init(void)
 {
@@ -98,8 +211,61 @@ void drv_write_register_bits(uint8_t reg, uint8_t rng_begin, uint8_t rng_end, ui
     drv_write_register(reg, (drv_read_register(reg)&~mask)|val);
 }
 
+void drv_print_faults(void) {
+    uint8_t i;
+    uint16_t reg_val;
+    bool printed = false;
+
+    if (!semihost_debug_enabled()) {
+        return;
+    }
+
+    if (drv_get_fault()) {
+        semihost_debug_printf("DRV: FPIN\n");
+        printed = true;
+    }
+
+    reg_val = drv_read_register(0x1);
+    for(i=0; i<=10; i++) {
+        if ((reg_val&(1<<i)) != 0) {
+            semihost_debug_printf("DRV: %s\n", drv_reg0x1_names[i]);
+            printed = true;
+        }
+    }
+
+    reg_val = drv_read_register(0x2);
+    for(i=0; i<=10; i++) {
+        if ((reg_val&(1<<i)) != 0) {
+            semihost_debug_printf("DRV: %s\n", drv_reg0x2_names[i]);
+            printed = true;
+        }
+    }
+
+    reg_val = drv_read_register(0x3);
+    for(i=0; i<=10; i++) {
+        if ((reg_val&(1<<i)) != 0) {
+            semihost_debug_printf("DRV: %s\n", drv_reg0x3_names[i]);
+            printed = true;
+        }
+    }
+
+    reg_val = drv_read_register(0x4);
+    for(i=0; i<=10; i++) {
+        if ((reg_val&(1<<i)) != 0) {
+            semihost_debug_printf("DRV: %s\n", drv_reg0x4_names[i]);
+            printed = true;
+        }
+    }
+
+    if (printed) {
+        semihost_debug_printf("\n");
+    }
+}
+
 void drv_print_register(uint8_t reg)
 {
+    semihost_debug_printf("0x%X 0b");
+
     uint8_t i;
     char buf[20];
     int n;
