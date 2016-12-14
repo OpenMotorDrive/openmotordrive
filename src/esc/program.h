@@ -15,18 +15,5 @@
 
 #pragma once
 
-#include <stdint.h>
-
-enum program_id_t {
-    PROGRAM_SERVO_TEST,
-    PROGRAM_SPIN_TEST,
-    PROGRAM_PHASE_OUTPUT_TEST,
-    PROGRAM_PRINT_DRV_FAULTS,
-    PROGRAM_PRINT_INPUT_VOLTAGE,
-    PROGRAM_PRINT_ENCODER,
-    PROGRAM_CAN_SERVO,
-    PROGRAM_CAN_ENCODER
-};
-
-void program_init(enum program_id_t id);
+void program_init(void);
 void program_event_adc_sample(float dt);

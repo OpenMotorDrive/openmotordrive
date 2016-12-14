@@ -1,4 +1,4 @@
-#include <programs/program_list.h>
+#include <esc/program.h>
 
 #include <esc/helpers.h>
 #include <esc/motor.h>
@@ -8,14 +8,12 @@
 
 #include <stdio.h>
 
-DEFINE_PROGRAM(PRINT_ENCODER)
-
-void init_handler(void) {
+void program_init(void) {
     // Calibrate the encoder
     motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
 }
 
-void adc_sample_handler(float dt) {
+void program_event_adc_sample(float dt) {
     motor_update_state(dt);
 
     static uint32_t last_print_ms = 0;

@@ -28,12 +28,8 @@
 #include <esc/motor.h>
 #include <esc/encoder.h>
 #include <esc/can.h>
-#include <esc/programs.h>
+#include <esc/program.h>
 #include <stdio.h>
-
-#ifndef CONFIG_PROGRAM
-    #define CONFIG_PROGRAM PROGRAM_SERVO_TEST
-#endif
 
 int main(void)
 {
@@ -51,7 +47,7 @@ int main(void)
     usleep(100000);
     motor_init();
 
-    program_init(CONFIG_PROGRAM);
+    program_init();
 
     uint32_t last_print_ms = 0;
 

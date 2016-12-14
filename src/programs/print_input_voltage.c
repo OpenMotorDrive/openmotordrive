@@ -1,14 +1,12 @@
-#include <programs/program_list.h>
+#include <esc/program.h>
 
 #include <esc/helpers.h>
 #include <esc/motor.h>
 #include <esc/timing.h>
 
-DEFINE_PROGRAM(PRINT_INPUT_VOLTAGE)
+void program_init(void) {}
 
-void init_handler(void) {}
-
-void adc_sample_handler(float dt) {
+void program_event_adc_sample(float dt) {
     motor_update_state(dt);
 
     // TODO

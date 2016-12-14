@@ -1,17 +1,15 @@
-#include <programs/program_list.h>
+#include <esc/program.h>
 
 #include <esc/helpers.h>
 #include <esc/motor.h>
 #include <esc/timing.h>
 
-DEFINE_PROGRAM(SPIN_TEST)
-
-void init_handler(void) {
+void program_init(void) {
     // Calibrate the encoder
     motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
 }
 
-void adc_sample_handler(float dt) {
+void program_event_adc_sample(float dt) {
     motor_update_state(dt);
 
     motor_set_id_ref(0.5f);
