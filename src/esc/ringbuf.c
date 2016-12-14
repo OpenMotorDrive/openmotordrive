@@ -49,11 +49,7 @@ bool ringbuf_peek(volatile struct ringbuf_t* b, uint16_t idx, char* value)
 
 uint16_t ringbuf_size(volatile struct ringbuf_t* b)
 {
-    if (b->head >= b->tail) {
-        return b->head - b->tail;
-    } else {
-        return b->tail + b->max_size - b->head;
-    }
+    return ((b->head-b->tail) % b->max_size) - 1;
 }
 
 void ringbuf_clear(volatile struct ringbuf_t* b)
