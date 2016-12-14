@@ -25,7 +25,6 @@ void adc_sample_handler(float dt) {
         semihost_debug_printf("encoder angle = %.6f\n", angle);
         last_print_ms = tnow_ms;
     }
-    canbus_debug_update();
 
     motor_run_commutation(dt);
 }
