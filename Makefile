@@ -11,7 +11,7 @@ LDLIBS := -lopencm3_stm32f3 -lm -Wl,--start-group -lc -lgcc -lnosys -Wl,--end-gr
 
 CFLAGS += -std=gnu11 -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-function-declaration -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes -fno-common -ffunction-sections -fdata-sections -MD -Wall -Wundef -Isrc -I$(LIBOPENCM3_DIR)/include -I$(LIBCANARD_DIR) -DSTM32F3
 
-OBJS := main.o esc/programs.o programs/servo_test.o programs/spin_test.o programs/print_input_voltage.o programs/print_encoder.o programs/phase_output_test.o programs/can_servo.o programs/can_encoder.o esc/init.o esc/pwm.o esc/timing.o esc/helpers.o esc/encoder.o esc/drv.o esc/adc.o esc/serial.o esc/curr_pid.o esc/motor.o esc/ringbuf.o esc/param.o esc/can.o
+OBJS := main.o esc/programs.o programs/servo_test.o programs/spin_test.o programs/print_input_voltage.o programs/print_encoder.o programs/phase_output_test.o programs/can_servo.o programs/can_encoder.o esc/init.o esc/pwm.o esc/timing.o esc/helpers.o esc/encoder.o esc/drv.o esc/adc.o esc/serial.o esc/curr_pid.o esc/motor.o esc/ringbuf.o esc/param.o esc/can.o esc/canbus_debug.o
 OBJS := $(addprefix build/,$(OBJS))
 
 .PHONY: all
