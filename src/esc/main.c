@@ -42,8 +42,8 @@ int main(void)
     param_init();
     spi_init();
     drv_init();
-    pwm_init();
     adc_init();
+    pwm_init();
     usleep(100000);
     motor_init();
 
