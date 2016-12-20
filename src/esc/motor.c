@@ -29,9 +29,9 @@
 static uint8_t elec_rots_per_mech_rot = 7;
 static float elec_theta_bias = 0.0f;
 static bool swap_phases = false;
-static const float curr_KR = 13.8f;
-static const float curr_KP = 10.0f;
-static const float curr_KI = 10000.0f;
+static const float curr_KR = 9.0f;
+static const float curr_KP = 50.0f;
+static const float curr_KI = 100000.0f;
 static const float vsense_div = 20.0f;
 static const float csa_G = 10.0f;
 static const float csa_R = 0.02f;
@@ -125,19 +125,17 @@ void motor_run_commutation(float dt)
             break;
 
         case MOTOR_MODE_FOC_CURRENT:
-            iq_pid_param.i_ref = 0.0f;
-            iq_pid_param.output_limit = max_duty*vbatt_m;
-            curr_pid_run(&iq_pid_param, &iq_pid_state);
-
-            id_pid_param.output_limit = sqrtf(SQ(iq_pid_param.output_limit)-SQ(iq_pid_state.output));
+            id_pid_param.i_ref = 0.0f;
+            id_pid_param.output_limit = max_duty*vbatt_m;
             curr_pid_run(&id_pid_param, &id_pid_state);
+
+            // limit iq such that
+            iq_pid_param.output_limit = sqrtf(MAX(SQ(id_pid_param.output_limit)-SQ(id_pid_state.output),0.0f));
+            curr_pid_run(&iq_pid_param, &iq_pid_state);
 
             transform_d_q_to_alpha_beta(id_pid_state.output/vbatt_m, iq_pid_state.output/vbatt_m, &alpha, &beta);
 
             svgen(alpha, beta, &a, &b, &c);
-            a += (1.0f-max_duty)*0.5f;
-            b += (1.0f-max_duty)*0.5f;
-            c += (1.0f-max_duty)*0.5f;
 
             if (!swap_phases) {
                 set_phase_duty(a, b, c);
@@ -159,41 +157,37 @@ void motor_run_commutation(float dt)
                         encoder_calibration_state.mech_theta_0 = mech_theta_m;
                         encoder_calibration_state.step = 1;
                     }
+
                     break;
                 case 1:
-                    // theta rotates to 90deg at the 2.0 second mark and is given 0.25 seconds to settle
-                    theta = constrain_float(M_PI_F/2.0f * (t-1.0f)/1.0f, 0.0f, M_PI_F/2.0f);
-                    if (t > 2.25f) {
+                    // theta rotates to 180deg at the 2.0 second mark and is given 0.5 seconds to settle
+                    theta = constrain_float(M_PI_F * (t-1.0f)/1.0f, 0.0f, M_PI_F);
+                    if (t > 2.5f) {
                         // elec_rots_per_mech_rot = delta_elec_angle/delta_mech_angle
                         float angle_diff = wrap_pi(mech_theta_m - encoder_calibration_state.mech_theta_0);
-                        elec_rots_per_mech_rot = (uint8_t)roundf((M_PI_F/2.0f)/fabsf(angle_diff));
+                        elec_rots_per_mech_rot = (uint8_t)roundf((M_PI_F)/fabsf(angle_diff));
 
                         // rotating the field in the positive direction should have rotated the encoder in the positive direction too
                         swap_phases = angle_diff < 0;
 
-                        // update the adc measurements and derived values because swap_phases could have changed
-                        retrieve_adc_measurements();
-                        transform_a_b_c_to_alpha_beta_gamma(ia_m, ib_m, ic_m, &ialpha_m, &ibeta_m, &igamma_m);
-                        transform_alpha_beta_to_d_q(ialpha_m, ibeta_m, &id_est, &iq_est);
-
-                        // set the electrical angle bias
-                        elec_theta_bias = wrap_pi(elec_theta_bias + atan2f(id_est, iq_est));
-
-                        // exit the calibration mode
-                        motor_set_mode(MOTOR_MODE_DISABLED);
+                        encoder_calibration_state.step = 2;
                     }
 
                     break;
+                case 2:
+                    theta = M_PI_F;
 
+                    // correct elec_theta_bias to zero atan2f(iq_est, id_est), which represents the electrical angle error
+                    elec_theta_bias = wrap_pi(elec_theta_bias - atan2f(iq_est, id_est));
+
+                    motor_set_mode(MOTOR_MODE_DISABLED);
+                    break;
             }
 
             alpha = v * cosf(theta);
             beta = v * sinf(theta);
 
             svgen(alpha, beta, &a, &b, &c);
-            a += (1.0f-max_duty)*0.5f;
-            b += (1.0f-max_duty)*0.5f;
-            c += (1.0f-max_duty)*0.5f;
 
             set_phase_duty(a, b, c);
 
@@ -208,9 +202,6 @@ void motor_run_commutation(float dt)
             beta = v * sinf(theta);
 
             svgen(alpha, beta, &a, &b, &c);
-            a += (1.0f-max_duty)*0.5f;
-            b += (1.0f-max_duty)*0.5f;
-            c += (1.0f-max_duty)*0.5f;
 
             set_phase_duty(a, b, c);
             break;
@@ -245,9 +236,9 @@ void motor_set_mode(enum motor_mode_t mode)
     iq_pid_param.i_ref = 0.0f;
 }
 
-void motor_set_id_ref(float id_ref)
+void motor_set_iq_ref(float iq_ref)
 {
-    id_pid_param.i_ref = id_ref;
+    iq_pid_param.i_ref = iq_ref;
 }
 
 enum motor_mode_t motor_get_mode(void)
@@ -300,7 +291,7 @@ static void update_estimates(float dt)
     const float alpha = dt/(dt+tc);
     mech_omega_est += (wrap_pi(mech_theta_m-prev_mech_theta_m)/dt - mech_omega_est) * alpha;
     prev_mech_theta_m = mech_theta_m;
-    
+
     // update the transformed current measurements
     transform_a_b_c_to_alpha_beta_gamma(ia_m, ib_m, ic_m, &ialpha_m, &ibeta_m, &igamma_m);
     transform_alpha_beta_to_d_q(ialpha_m, ibeta_m, &id_est, &iq_est);
@@ -332,54 +323,23 @@ static void transform_alpha_beta_to_d_q(float alpha, float beta, float* d, float
     *q = -alpha*sinf(elec_theta_m) + beta*cosf(elec_theta_m);
 }
 
-static void svgen(float alpha, float beta, float* a, float* b, float* c)
+static void svgen(float alpha, float beta, float* Va, float* Vb, float* Vc)
 {
-    float Va = beta;
-    float Vb = -(beta/2.0f)+(alpha*sqrtf(3.0f)/2.0f);
-    float Vc = -(beta/2.0f)-(alpha*sqrtf(3.0f)/2.0f);
-    uint8_t sector = 0;
-    if (Va > 0) sector |= 1<<0;
-    if (Vb > 0) sector |= 1<<1;
-    if (Vc > 0) sector |= 1<<2;
-    float X = beta;
-    float Y = (beta/2.0f)+(alpha*sqrtf(3.0f)/2.0f);
-    float Z = (beta/2.0f)-(alpha*sqrtf(3.0f)/2.0f);
-    switch(sector)
-    {
-        case 0:
-            (*a) = 0.5f;
-            (*b) = 0.5f;
-            (*c) = 0.5f;
-            break;
-        case 1:
-            (*b) = (1.0f-Z-Y)/2.0f;
-            (*a) = (*b)+Z;
-            (*c) = (*a)+Y;
-            break;
-        case 2:
-            (*a) = (1.0f-Y+X)/2.0f;
-            (*c) = (*a)+Y;
-            (*b) = (*c)-X;
-            break;
-        case 3:
-            (*a) = (1.0f+Z-X)/2.0f;
-            (*b) = (*a)-Z;
-            (*c) = (*b)+X;
-            break;
-        case 4:
-            (*c) = (1.0f+X-Z)/2.0f;
-            (*b) = (*c)-X;
-            (*a) = (*b)+Z;
-            break;
-        case 5:
-            (*b) = (1.0f-X+Y)/2.0f;
-            (*c) = (*b)+X;
-            (*a) = (*c)-Y;
-            break;
-        case 6:
-            (*c) = (1.0f+Y+Z)/2.0f;
-            (*a) = (*c)-Y;
-            (*b) = (*a)-Z;
-            break;
-    }
+    // Per http://www.embedded.com/design/real-world-applications/4441150/2/Painless-MCU-implementation-of-space-vector-modulation-for-electric-motor-systems
+    // Scaled such that overmodulation does not occur provided the magnitude of the input does not exceed max_duty.
+    float Vneutral;
+
+    (*Va) = alpha * 1.0f/sqrtf(3.0f);
+    (*Vb) = (-(alpha/2.0f)+(beta*sqrtf(3.0f)/2.0f)) * 1.0f/sqrtf(3.0f);
+    (*Vc) = (-(alpha/2.0f)-(beta*sqrtf(3.0f)/2.0f)) * 1.0f/sqrtf(3.0f);
+
+    Vneutral = 0.5f * (MAX(MAX((*Va),(*Vb)),(*Vc)) + MIN(MIN((*Va),(*Vb)),(*Vc)));
+
+    (*Va) += 0.5f*max_duty-Vneutral;
+    (*Vb) += 0.5f*max_duty-Vneutral;
+    (*Vc) += 0.5f*max_duty-Vneutral;
+
+    (*Va) = constrain_float(*Va, 0.0f, max_duty);
+    (*Vb) = constrain_float(*Vb, 0.0f, max_duty);
+    (*Vc) = constrain_float(*Vc, 0.0f, max_duty);
 }

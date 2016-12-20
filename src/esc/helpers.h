@@ -23,6 +23,9 @@
 
 #define SQ(__X) (__X*__X)
 
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+
 float constrain_float(float val, float min_val, float max_val);
 float wrap_2pi(float val);
 float wrap_pi(float val);
