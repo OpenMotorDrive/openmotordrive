@@ -28,7 +28,7 @@ void program_init(void) {
 void program_event_adc_sample(float dt) {
     motor_update_state(dt);
 
-    motor_set_id_ref(0.5f);
+    motor_set_iq_ref(1.0f);
 
     if (motor_get_mode() == MOTOR_MODE_DISABLED) {
         motor_set_mode(MOTOR_MODE_FOC_CURRENT);
