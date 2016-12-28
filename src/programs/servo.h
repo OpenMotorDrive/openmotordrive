@@ -19,8 +19,8 @@
 static void servo_run(float dt, float theta) {
     static float iq_ref_filt;
     const float tc = 0.002f;
-    const float ang_P = 3.0f;
-    const float ang_D = 0.01f;
+    const float ang_P = 7.0f;
+    const float ang_D = 0.1f;
     float alpha = dt/(dt+tc);
 
     iq_ref_filt += ((wrap_pi(theta-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - iq_ref_filt) * alpha;
