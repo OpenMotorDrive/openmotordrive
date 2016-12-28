@@ -27,7 +27,7 @@ void timing_init(void)
 {
     counts_per_ms = rcc_ahb_frequency/1000UL;
     counts_per_us = rcc_ahb_frequency/1000000UL;
-    systick_set_reload(counts_per_ms); // 1 ms
+    systick_set_reload(counts_per_ms-1); // 1 ms
     systick_set_clocksource(STK_CSR_CLKSOURCE_AHB);
     systick_counter_enable();
     systick_interrupt_enable();
@@ -44,6 +44,9 @@ uint32_t micros(void) {
     do {
         ms = system_millis;
         counter = systick_get_value();
+        if (systick_get_countflag()) {
+            system_millis++;
+        }
     } while(system_millis != ms);
 
     return ms*1000UL + (counts_per_ms-counter)/counts_per_us;
@@ -56,5 +59,7 @@ void usleep(uint32_t delay) {
 
 void sys_tick_handler(void)
 {
-    system_millis++;
+    if (systick_get_countflag()) {
+        system_millis++;
+    }
 }
