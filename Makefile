@@ -9,7 +9,7 @@ LDFLAGS := --static -nostartfiles -L$(LIBOPENCM3_DIR)/lib -T$(LDSCRIPT) -Wl,--gc
 
 LDLIBS := -lopencm3_stm32f3 -lm -Wl,--start-group -lc -lgcc -lrdimon -Wl,--end-group
 
-CFLAGS += -std=gnu11 -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-function-declaration -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes -fsingle-precision-constant -fno-common -ffunction-sections -fdata-sections -MD -Wall -Wundef -Isrc -I$(LIBOPENCM3_DIR)/include -I$(LIBCANARD_DIR) -DSTM32F3
+CFLAGS += -std=gnu11 -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Wimplicit-function-declaration -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes -fsingle-precision-constant -fno-common -ffunction-sections -fdata-sections -MD -Wall -Wundef -Isrc -I$(LIBOPENCM3_DIR)/include -I$(LIBCANARD_DIR) -DSTM32F3 -D"CANARD_ASSERT(x)"="do {} while(0)" -DGIT_HASH=0x$(shell git rev-parse --short=8 HEAD)
 
 COMMON_OBJS := $(addprefix build/,$(addsuffix .o,$(basename $(shell find src/esc -name "*.c"))))
 PROGS := $(addprefix build/bin/,$(addsuffix .elf,$(notdir $(basename $(shell ls src/programs/*.c)))))
@@ -28,9 +28,11 @@ build/%.bin: build/%.elf
 	@mkdir -p "$(dir $@)"
 	@arm-none-eabi-objcopy -O binary $< $@
 
+.PRECIOUS: build/src/%.o
 build/src/%.o: src/%.c $(LIBOPENCM3_DIR)
 	@echo "### BUILDING $@"
 	@mkdir -p "$(dir $@)"
+	@arm-none-eabi-gcc $(CFLAGS) $(ARCH_FLAGS) -S $< -o $(patsubst %.o,%.S,$@)
 	@arm-none-eabi-gcc $(CFLAGS) $(ARCH_FLAGS) -c $< -o $@
 
 build/canard.o: $(LIBCANARD_DIR)/canard.c
@@ -41,13 +43,15 @@ build/canard.o: $(LIBCANARD_DIR)/canard.c
 .PHONY: $(LIBOPENCM3_DIR)
 $(LIBOPENCM3_DIR):
 	@echo "### BUILDING $@"
-	echo "$(PROGS)"
 	@$(MAKE) -C $(LIBOPENCM3_DIR)
 
-.PHONY: upload
+.PHONY: %-upload
 %-upload: build/bin/%.elf
 	@echo "### UPLOADING"
 	@openocd -f openocd.cfg -c "program $< verify reset exit"
+
+.PHONY: %
+%: build/bin/%.elf ;
 
 .PHONY: clean
 clean:

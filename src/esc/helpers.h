@@ -26,7 +26,12 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
+#define UNUSED(x) ((void)x)
+
+float sinf_fast(float x);
+float cosf_fast(float x);
 float constrain_float(float val, float min_val, float max_val);
+float wrap_1(float x);
 float wrap_2pi(float val);
 float wrap_pi(float val);
 uint16_t crc16_ccitt(const char *buf, uint32_t len, uint16_t crc);

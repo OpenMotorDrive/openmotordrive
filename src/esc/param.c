@@ -51,18 +51,21 @@ struct param_page_t {
 
 struct param_info_t {
     enum param_key_t key;
-    char name[16];
+    char name[93];
     float default_val;
 };
 
 static const struct param_info_t param_info_table[] = {
-    {.key = PARAM_ESC_ENC_PBIAS, .name = "ESC_ENC_PBIAS", .default_val = 0.0f},
+    {.key = PARAM_ESC_ENC_MBIAS, .name = "ESC_ENC_MBIAS", .default_val = 0.0f},
     {.key = PARAM_ESC_ENC_EBIAS, .name = "ESC_ENC_EBIAS", .default_val = 0.0f},
     {.key = PARAM_ESC_MOT_KV,    .name = "ESC_MOT_KV",    .default_val = 0.0f},
     {.key = PARAM_ESC_MOT_POLES, .name = "ESC_MOT_POLES", .default_val = 0.0f},
     {.key = PARAM_ESC_MOT_R,     .name = "ESC_MOT_R",     .default_val = 0.0f},
+    {.key = PARAM_ESC_MOT_L_D,   .name = "ESC_MOT_L_D",   .default_val = 0.0f},
+    {.key = PARAM_ESC_MOT_L_Q,   .name = "ESC_MOT_L_Q",   .default_val = 0.0f},
     {.key = PARAM_ESC_FOC_P,     .name = "ESC_FOC_P",     .default_val = 0.0f},
     {.key = PARAM_ESC_FOC_I,     .name = "ESC_FOC_I",     .default_val = 0.0f},
+    {.key = PARAM_UAVCAN_NODE_ID,.name = "uavcan.node_id",.default_val = 0.0f},
 };
 
 #define NUM_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))
@@ -81,6 +84,7 @@ static bool param_flash_erase_page(uint32_t addr);
 static uint16_t param_get_header_data_crc16(struct param_header_data_t* header_data);
 static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple);
 static int16_t param_get_index(enum param_key_t key);
+static uint64_t hash_fnv_1a(uint32_t len, uint8_t* buf);
 
 void param_erase(void)
 {
@@ -143,17 +147,17 @@ uint8_t param_get_num_params(void)
     return NUM_PARAMS;
 }
 
-float param_retrieve(enum param_key_t key)
+float* param_retrieve_by_key(enum param_key_t key)
 {
     return param_retrieve_by_index(param_get_index(key));
 }
 
-float param_retrieve_by_index(uint16_t idx)
+float* param_retrieve_by_index(uint16_t idx)
 {
     if (idx >= NUM_PARAMS) {
-        return 0.0f;
+        return NULL;
     }
-    return param_cache[idx];
+    return &param_cache[idx];
 }
 
 bool param_index_in_range(uint8_t idx)
@@ -194,8 +198,8 @@ bool param_set_and_save(enum param_key_t key, float value)
 }
 
 static struct param_page_t* param_get_most_recent_valid_page(void) {
-    bool page_A_valid = page_A.header.data.format_version == PARAM_FORMAT_VERSION && page_A.header.data.seq != 0xFFFFU && page_A.header.data_crc16 == param_get_header_data_crc16(&page_A.header.data);
-    bool page_B_valid = page_B.header.data.format_version == PARAM_FORMAT_VERSION && page_B.header.data.seq != 0xFFFFU && page_B.header.data_crc16 == param_get_header_data_crc16(&page_B.header.data);
+    bool page_A_valid = page_A.header.data.format_version == PARAM_FORMAT_VERSION && page_A.header.data_crc16 == param_get_header_data_crc16(&page_A.header.data);
+    bool page_B_valid = page_B.header.data.format_version == PARAM_FORMAT_VERSION && page_B.header.data_crc16 == param_get_header_data_crc16(&page_B.header.data);
 
     if (!page_A_valid && !page_B_valid) {
         return NULL;
@@ -231,7 +235,7 @@ void param_squash(void)
 
     flash_unlock();
     param_flash_program_half_word(&next_page->header.data.format_version, PARAM_FORMAT_VERSION);
-    param_flash_program_half_word(&next_page->header.data.seq, (page_in_use->header.data.seq+1)%(0xFFFFU-1));
+    param_flash_program_half_word(&next_page->header.data.seq, (uint16_t)(page_in_use->header.data.seq+1));
     param_flash_program_half_word(&next_page->header.data_crc16, param_get_header_data_crc16(&next_page->header.data));
     flash_lock();
 
@@ -349,4 +353,18 @@ static int16_t param_get_index(enum param_key_t key)
         }
     }
     return -1;
+}
+
+#define FNV_1_OFFSET_BASIS_64 14695981039346656037UL
+#define FNV_1_PRIME_64 1099511628211UL
+
+static uint64_t hash_fnv_1a(uint32_t len, uint8_t* buf)
+{
+    uint64_t hash = FNV_1_OFFSET_BASIS_64;
+    uint32_t i;
+    for (i=0; i<len; i++) {
+        hash ^= (uint64_t)buf[i];
+        hash *= FNV_1_PRIME_64;
+    }
+    return hash;
 }

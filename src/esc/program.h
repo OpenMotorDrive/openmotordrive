@@ -15,5 +15,7 @@
 
 #pragma once
 
+#include <esc/adc.h>
+
 void program_init(void);
-void program_event_adc_sample(float dt);
+void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample);

@@ -38,10 +38,9 @@ void serial_init(void)
     rcc_periph_clock_enable(RCC_DMA1);
     gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO6|GPIO7);
     gpio_set_af(GPIOB, GPIO_AF7, GPIO6|GPIO7);
-    const uint32_t baud = 921600;
-
-    uint32_t clock = rcc_apb1_frequency;
-    USART_BRR(USART1) = ((2 * clock) + baud) / (2 * baud);
+//     const uint32_t baud = 4500000;
+//     uint32_t clock = rcc_apb1_frequency;
+    USART_BRR(USART1) = 0x10;//((2 * clock) + baud) / (2 * baud);
     usart_set_databits(USART1, 8);
     usart_set_stopbits(USART1, USART_STOPBITS_1);
     usart_set_mode(USART1, USART_MODE_TX_RX);
@@ -61,6 +60,7 @@ void serial_init(void)
 
     // set up recv interrupt
     nvic_enable_irq(NVIC_USART1_EXTI25_IRQ);
+    USART_CR1(USART1) |= 1UL<<15; // OVER8
     USART_CR1(USART1) |= 1UL<<5; // RXNEIE=1
 
     usart_enable(USART1);

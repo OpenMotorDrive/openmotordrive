@@ -20,6 +20,8 @@
 #include <esc/motor.h>
 #include <esc/timing.h>
 
+#include <esc/semihost_debug.h>
+
 #include "servo.h"
 
 void program_init(void) {
@@ -27,10 +29,29 @@ void program_init(void) {
     motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
 }
 
-void program_event_adc_sample(float dt) {
-    motor_update_state(dt);
+static uint32_t tbegin_ms;
+static float iq_meas_sum;
+static uint32_t iq_meas_count;
+void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample) {
+    motor_update_state(dt, adc_sample);
 
-    servo_run(dt, ((millis()/1000)%60)/60.0f*2*M_PI_F);
+    servo_run(dt, M_PI_F/4+0.05f);
+
+    if (motor_get_mode() == MOTOR_MODE_FOC_CURRENT && millis()-tbegin_ms > 1000) {
+        iq_meas_sum += motor_get_iq_meas();
+        iq_meas_count++;
+    }
+
+    if (motor_get_mode() == MOTOR_MODE_DISABLED) {
+        tbegin_ms = millis();
+        iq_meas_sum = 0;
+        iq_meas_count = 0;
+        motor_set_mode(MOTOR_MODE_FOC_CURRENT);
+    } else if (motor_get_mode() == MOTOR_MODE_FOC_CURRENT && millis()-tbegin_ms > 10000) {
+        semihost_debug_printf("%f\n", iq_meas_sum/iq_meas_count);
+        motor_set_mode(MOTOR_MODE_DISABLED);
+    }
 
     motor_run_commutation(dt);
+    motor_update_ekf(dt);
 }

@@ -18,15 +18,11 @@
 
 static void servo_run(float dt, float theta) {
     static float iq_ref_filt;
-    const float tc = 0.002f;
-    const float ang_P = 7.0f;
-    const float ang_D = 0.1f;
+    const float tc = 0.005f;
+    const float ang_P = 50.0f;
+    const float ang_D = 0.5f;
     float alpha = dt/(dt+tc);
 
     iq_ref_filt += ((wrap_pi(theta-motor_get_phys_rotor_angle())*ang_P-motor_get_phys_rotor_ang_vel()*ang_D) - iq_ref_filt) * alpha;
     motor_set_iq_ref(iq_ref_filt);
-
-    if (motor_get_mode() == MOTOR_MODE_DISABLED) {
-        motor_set_mode(MOTOR_MODE_FOC_CURRENT);
-    }
 }

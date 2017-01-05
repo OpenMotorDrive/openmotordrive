@@ -14,25 +14,48 @@
  */
 
 
+#include <stdbool.h>
 #include <esc/program.h>
 
 #include <esc/helpers.h>
 #include <esc/motor.h>
 #include <esc/timing.h>
+#include <esc/semihost_debug.h>
+#include <esc/drv.h>
+#include <esc/serial.h>
+
+static uint32_t tbegin_us;
+static bool waiting_to_start = false;
+static bool started = false;
+static float t_max = 0.3f;
 
 void program_init(void) {
     // Calibrate the encoder
     motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
+    tbegin_us = micros();
 }
 
-void program_event_adc_sample(float dt) {
-    motor_update_state(dt);
+void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample) {
+    uint32_t tnow = micros();
+    float t = (tnow-tbegin_us)*1.0e-6f;
 
-    motor_set_iq_ref(1.0f);
-
-    if (motor_get_mode() == MOTOR_MODE_DISABLED) {
-        motor_set_mode(MOTOR_MODE_FOC_CURRENT);
+    if (motor_get_mode() == MOTOR_MODE_DISABLED && !waiting_to_start && !started) {
+        waiting_to_start = true;
+        tbegin_us = micros();
+    } else if (waiting_to_start && !started && t > 0.1f) {
+        tbegin_us = micros();
+        started = true;
+        motor_set_mode(MOTOR_MODE_PHASE_VOLTAGE_TEST);
+    } else if (started && t > t_max && motor_get_mode() != MOTOR_MODE_DISABLED) {
+        motor_set_mode(MOTOR_MODE_DISABLED);
     }
 
+    motor_set_iq_ref(5.0f);
+    motor_update_state(dt, adc_sample);
     motor_run_commutation(dt);
+    motor_update_ekf(dt);
+
+    if (started && motor_get_mode() != MOTOR_MODE_DISABLED) {
+        motor_print_data(dt);
+    }
 }

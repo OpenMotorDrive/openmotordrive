@@ -27,6 +27,5 @@ struct canbus_msg {
 };
 
 void canbus_init(void);
-void canbus_update(void);
 bool canbus_send_message(struct canbus_msg* msg);
 bool canbus_recv_message(struct canbus_msg* msg);

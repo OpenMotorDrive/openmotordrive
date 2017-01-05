@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <esc/adc.h>
 
 enum motor_mode_t {
     MOTOR_MODE_DISABLED = 0,
@@ -26,7 +27,7 @@ enum motor_mode_t {
 };
 
 void motor_init(void);
-void motor_update_state(float dt);
+void motor_update_state(float dt, struct adc_sample_s* adc_sample);
 void motor_run_commutation(float dt);
 void motor_set_mode(enum motor_mode_t mode);
 void motor_set_iq_ref(float id_ref);
@@ -34,3 +35,8 @@ enum motor_mode_t motor_get_mode(void);
 float motor_get_phys_rotor_angle(void);
 float motor_get_phys_rotor_ang_vel(void);
 float motor_get_elec_rotor_angle(void);
+float motor_get_vbatt(void);
+float motor_get_iq_est(void);
+float motor_get_iq_meas(void);
+void motor_print_data(float dt);
+void motor_update_ekf(float dt);

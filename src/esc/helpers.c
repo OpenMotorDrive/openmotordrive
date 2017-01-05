@@ -17,6 +17,12 @@
 #include <math.h>
 #include <stdint.h>
 
+float wrap_1(float x) {
+    volatile float z = (x + 25165824.0f);
+    x = x - (z - 25165824.0f);
+    return x;
+}
+
 float constrain_float(float val, float min_val, float max_val)
 {
     if (val < min_val) {
@@ -28,21 +34,36 @@ float constrain_float(float val, float min_val, float max_val)
     return val;
 }
 
-float wrap_2pi(float val)
+float wrap_pi(float x)
 {
-    val = fmodf(val, 2.0f*M_PI_F);
-    if (val < 0) {
-        val += 2.0f*M_PI_F;
-    }
-    return val;
+    return wrap_1(x/M_PI_F)*M_PI_F;
 }
 
-float wrap_pi(float val){
-    val = fmod(val + M_PI_F,2.0f*M_PI_F);
-    if (val < 0) {
-        val += 2.0f*M_PI_F;
+float wrap_2pi(float x)
+{
+    x = wrap_pi(x);
+
+    if (x < 0) {
+        x += 2*M_PI_F;
     }
-    return val - M_PI_F;
+
+    return x;
+}
+
+float sinf_fast(float x)
+{
+    const float Q = 3.1f;
+    const float P = 3.6f;
+    float y;
+
+    x = wrap_1(x/M_PI_F);
+    y = x - x * fabsf(x);
+    return y * (Q + P * fabsf(y));
+}
+
+float cosf_fast(float x)
+{
+    return sinf_fast(x+M_PI_F/2.0f);
 }
 
 // CRC16 implementation according to CCITT standards

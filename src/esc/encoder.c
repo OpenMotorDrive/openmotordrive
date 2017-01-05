@@ -71,7 +71,7 @@ void encoder_read_angle(void)
     spi_disable(SPI3);
     gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_PULLUP, GPIO3); // SCK
     spi_set_clock_polarity_1(SPI3);
-    //spi_set_baudrate_prescaler(SPI3, SPI_CR1_BR_FPCLK_DIV_4); // 18MHz - datasheet says 40ns min clock period
+    spi_set_baudrate_prescaler(SPI3, SPI_CR1_BR_FPCLK_DIV_4); // 18MHz - datasheet says 40ns min clock period
     spi_enable(SPI3);
 
     for(i=0;i<2;i++) __asm__("nop"); // min 20ns

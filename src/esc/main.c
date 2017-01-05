@@ -29,16 +29,19 @@
 #include <esc/encoder.h>
 #include <esc/can.h>
 #include <esc/program.h>
+#include <esc/semihost_debug.h>
+#include <esc/uavcan.h>
 #include <stdio.h>
 
 int main(void)
 {
-    uint8_t prev_smpidx = 0;
+    uint8_t prev_seq = 0;
 
     clock_init();
     timing_init();
     serial_init();
     canbus_init();
+    uavcan_init();
     param_init();
     spi_init();
     drv_init();
@@ -54,22 +57,25 @@ int main(void)
     // main loop
     while(1) {
         // wait specified time for adc measurement
-        uint8_t smpidx, d_smp;
+        struct adc_sample_s adc_sample;
+        uint8_t d_seq;
         do {
             encoder_read_angle();
-            smpidx = adc_get_smpidx();
-            d_smp = smpidx-prev_smpidx;
-        } while (d_smp < 3);
-        prev_smpidx = smpidx;
-        float dt = d_smp*adc_get_smp_period();
+            adc_get_sample(&adc_sample);
+            d_seq = adc_sample.seq-prev_seq;
+        } while (d_seq < 4);
+        prev_seq = adc_sample.seq;
+        float dt = d_seq*adc_get_smp_period();
 
-        program_event_adc_sample(dt);
+        program_event_adc_sample(dt, &adc_sample);
+        uavcan_update();
 
         uint32_t tnow_ms = millis();
         if (tnow_ms-last_print_ms >= 2000) {
-            drv_print_faults();
+//             semihost_debug_printf("%d mV\n", (int32_t)(motor_get_vbatt()*1000));
+//             drv_print_faults();
             last_print_ms = tnow_ms;
-            drv_write_register_bits(0x9,1,1,0b1); // clear faults
+//             drv_write_register_bits(0x9,1,1,0b1); // clear faults
         }
     }
 

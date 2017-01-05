@@ -37,7 +37,7 @@ void canbus_init(void) {
         false,            /* AWUM: Automatic wakeup mode? */
         true,             /* NART: No automatic retransmission? */
         false,            /* RFLM: Receive FIFO locked mode? */
-        false,            /* TXFP: Transmit FIFO priority? */
+        true,            /* TXFP: Transmit FIFO priority? */
         CAN_BTR_SJW_1TQ,  /* Resynchronization time quanta jump width.*/
         CAN_BTR_TS1_15TQ, /* Time segment 1 time quanta width. */
         CAN_BTR_TS2_2TQ,  /* Time segment 2 time quanta width. */
@@ -45,7 +45,6 @@ void canbus_init(void) {
         false,            /* Loopback */
         false             /* Silent */
     );
-
 
     can_filter_id_mask_32bit_init(
         CAN1,  /* CAN register base address */
