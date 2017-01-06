@@ -121,7 +121,7 @@ void motor_run_commutation(float dt)
     float alpha, beta, a, b, c;
     switch (motor_mode) {
         case MOTOR_MODE_DISABLED:
-            set_phase_duty(0.0f, 0.0f, 0.0f);
+            pwm_set_phase_duty(0.0f, 0.0f, 0.0f);
             break;
 
         case MOTOR_MODE_FOC_CURRENT:
@@ -138,9 +138,9 @@ void motor_run_commutation(float dt)
             svgen(alpha, beta, &a, &b, &c);
 
             if (!swap_phases) {
-                set_phase_duty(a, b, c);
+                pwm_set_phase_duty(a, b, c);
             } else {
-                set_phase_duty(a, c, b);
+                pwm_set_phase_duty(a, c, b);
             }
             break;
 
@@ -189,7 +189,7 @@ void motor_run_commutation(float dt)
 
             svgen(alpha, beta, &a, &b, &c);
 
-            set_phase_duty(a, b, c);
+            pwm_set_phase_duty(a, b, c);
 
             break;
         }
@@ -203,7 +203,7 @@ void motor_run_commutation(float dt)
 
             svgen(alpha, beta, &a, &b, &c);
 
-            set_phase_duty(a, b, c);
+            pwm_set_phase_duty(a, b, c);
             break;
         }
     }
@@ -219,7 +219,7 @@ void motor_set_mode(enum motor_mode_t mode)
 
     if (motor_mode == MOTOR_MODE_DISABLED) {
         drv_6_pwm_mode();
-        set_phase_duty(0.0f, 0.0f, 0.0f);
+        pwm_set_phase_duty(0.0f, 0.0f, 0.0f);
     } else {
         drv_3_pwm_mode();
     }

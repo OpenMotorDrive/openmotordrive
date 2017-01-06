@@ -18,4 +18,5 @@
 #include <stdint.h>
 
 void pwm_init(void);
-void set_phase_duty(float phaseA, float phaseB, float phaseC);
+void pwm_set_phase_duty(float phaseA, float phaseB, float phaseC);
+void pwm_get_phase_duty(float* phaseA, float* phaseB, float* phaseC);

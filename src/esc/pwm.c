@@ -45,12 +45,26 @@ void pwm_init(void)
     timer_enable_counter(TIM1);
 }
 
-void set_phase_duty(float phaseA, float phaseB, float phaseC)
+void pwm_set_phase_duty(float phaseA, float phaseB, float phaseC)
 {
     phaseA = constrain_float(phaseA, 0.0f, 1.0f);
-    timer_set_oc_value(TIM1, TIM_OC1, TIM1_ARR-roundf(TIM1_ARR*phaseA));
     phaseB = constrain_float(phaseB, 0.0f, 1.0f);
-    timer_set_oc_value(TIM1, TIM_OC2, TIM1_ARR-roundf(TIM1_ARR*phaseB));
     phaseC = constrain_float(phaseC, 0.0f, 1.0f);
-    timer_set_oc_value(TIM1, TIM_OC3, TIM1_ARR-roundf(TIM1_ARR*phaseC));
+
+    TIM1_CCR1 = TIM1_ARR-roundf(TIM1_ARR*phaseA);
+    TIM1_CCR2 = TIM1_ARR-roundf(TIM1_ARR*phaseB);
+    TIM1_CCR3 = TIM1_ARR-roundf(TIM1_ARR*phaseC);
+}
+
+void pwm_get_phase_duty(float* phaseA, float* phaseB, float* phaseC)
+{
+    if (phaseA) {
+        *phaseA = ((float)(TIM1_ARR-TIM1_CCR1))/TIM1_ARR;
+    }
+    if (phaseB) {
+        *phaseB = ((float)(TIM1_ARR-TIM1_CCR2))/TIM1_ARR;
+    }
+    if (phaseC) {
+        *phaseC = ((float)(TIM1_ARR-TIM1_CCR3))/TIM1_ARR;
+    }
 }
