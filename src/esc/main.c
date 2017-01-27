@@ -32,6 +32,17 @@
 #include <esc/semihost_debug.h>
 #include <esc/uavcan.h>
 #include <stdio.h>
+#include <libopencm3/cm3/scb.h>
+
+static bool restart_req = false;
+static uint32_t restart_req_us = 0;
+
+static bool restart_request_handler(void)
+{
+    restart_req = true;
+    restart_req_us = micros();
+    return true;
+}
 
 int main(void)
 {
@@ -39,10 +50,11 @@ int main(void)
 
     clock_init();
     timing_init();
+    param_init();
     serial_init();
     canbus_init();
     uavcan_init();
-    param_init();
+    uavcan_set_restart_cb(restart_request_handler);
     spi_init();
     drv_init();
     adc_init();
@@ -76,6 +88,11 @@ int main(void)
 //             drv_print_faults();
             last_print_ms = tnow_ms;
 //             drv_write_register_bits(0x9,1,1,0b1); // clear faults
+        }
+
+        if (restart_req && (micros() - restart_req_us) > 1000) {
+            // reset
+            scb_reset_system();
         }
     }
 

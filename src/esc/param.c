@@ -15,7 +15,10 @@
 
 #include <esc/param.h>
 #include <esc/helpers.h>
+#include <esc/semihost_debug.h>
+#include <esc/timing.h>
 
+#include <float.h>
 #include <string.h>
 #include <libopencm3/stm32/flash.h>
 
@@ -49,23 +52,20 @@ struct param_page_t {
     struct param_journal_entry_t journal[ENTRIES_PER_PAGE];
 };
 
-struct param_info_t {
-    enum param_key_t key;
-    char name[93];
-    float default_val;
-};
 
-static const struct param_info_t param_info_table[] = {
-    {.key = PARAM_ESC_ENC_MBIAS, .name = "ESC_ENC_MBIAS", .default_val = 0.0f},
-    {.key = PARAM_ESC_ENC_EBIAS, .name = "ESC_ENC_EBIAS", .default_val = 0.0f},
-    {.key = PARAM_ESC_MOT_KV,    .name = "ESC_MOT_KV",    .default_val = 0.0f},
-    {.key = PARAM_ESC_MOT_POLES, .name = "ESC_MOT_POLES", .default_val = 0.0f},
-    {.key = PARAM_ESC_MOT_R,     .name = "ESC_MOT_R",     .default_val = 0.0f},
-    {.key = PARAM_ESC_MOT_L_D,   .name = "ESC_MOT_L_D",   .default_val = 0.0f},
-    {.key = PARAM_ESC_MOT_L_Q,   .name = "ESC_MOT_L_Q",   .default_val = 0.0f},
-    {.key = PARAM_ESC_FOC_P,     .name = "ESC_FOC_P",     .default_val = 0.0f},
-    {.key = PARAM_ESC_FOC_I,     .name = "ESC_FOC_I",     .default_val = 0.0f},
-    {.key = PARAM_UAVCAN_NODE_ID,.name = "uavcan.node_id",.default_val = 0.0f},
+
+static const struct param_info_s param_info_table[] = {
+    {.key = PARAM_ESC_ENC_MBIAS,  .name = "ESC_ENC_MBIAS",                            .default_val =   0.0f, .min_val = -M_PI_F, .max_val = M_PI_F, .int_val=false},
+    {.key = PARAM_ESC_ENC_EBIAS,  .name = "ESC_ENC_EBIAS",                            .default_val =   0.0f, .min_val = -M_PI_F, .max_val = M_PI_F, .int_val=false},
+    {.key = PARAM_ESC_MOT_KV,     .name = "ESC_MOT_KV",                               .default_val =   0.0f, .min_val =       0, .max_val = 100000, .int_val=false},
+    {.key = PARAM_ESC_MOT_POLES,  .name = "ESC_MOT_POLES",                            .default_val =   7.0f, .min_val =       1, .max_val = 100,    .int_val=false},
+    {.key = PARAM_ESC_MOT_R,      .name = "ESC_MOT_R",                                .default_val =   0.1f, .min_val =       0, .max_val = 100,    .int_val=false},
+    {.key = PARAM_ESC_MOT_L_D,    .name = "ESC_MOT_L_D",                              .default_val = 40e-6f, .min_val =       0, .max_val = 1e-3f,  .int_val=false},
+    {.key = PARAM_ESC_MOT_L_Q,    .name = "ESC_MOT_L_Q",                              .default_val = 70e-6f, .min_val =       0, .max_val = 1e-3f,  .int_val=false},
+    {.key = PARAM_ESC_FOC_P,      .name = "ESC_FOC_P",                                .default_val =   0.0f, .min_val =       0, .max_val = 30,     .int_val=false},
+    {.key = PARAM_ESC_FOC_I,      .name = "ESC_FOC_I",                                .default_val =   0.0f, .min_val =       0, .max_val = 30000,  .int_val=false},
+    {.key = PARAM_UAVCAN_NODE_ID, .name = "uavcan.node_id",                           .default_val =   0.0f, .min_val =       0, .max_val = 127,    .int_val=true},
+    {.key = PARAM_UAVCAN_ESC_ID,  .name = "uavcan.id-uavcan.equipment.esc-esc_index", .default_val =   0.0f, .min_val =       0, .max_val = 32,     .int_val=true},
 };
 
 #define NUM_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))
@@ -104,7 +104,6 @@ void param_init(void)
     for(i=0; i<NUM_PARAMS; i++) {
         param_cache[i] = param_info_table[i].default_val;
     }
-
     page_in_use = param_get_most_recent_valid_page();
 
     if (page_in_use == NULL) {
@@ -164,18 +163,36 @@ bool param_index_in_range(uint8_t idx)
     return idx < NUM_PARAMS;
 }
 
-bool param_get_name_value_by_index(uint8_t idx, char* name, float* value)
+bool param_get_info_by_index(uint8_t idx, const struct param_info_s** info)
 {
     if (idx >= NUM_PARAMS) {
         return false;
     }
 
-    memcpy(name, param_info_table[idx].name, sizeof(param_info_table[idx].name));
-    *value = param_cache[idx];
+    *info = &param_info_table[idx];
+
     return true;
 }
 
-bool param_set_and_save(enum param_key_t key, float value)
+int16_t param_get_index_by_name(char* name) {
+    uint16_t i;
+    for(i=0; i<NUM_PARAMS; i++) {
+        if(strncmp(name, param_info_table[i].name, PARAM_MAX_NAME_LEN) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool param_set_and_save_by_index(uint16_t idx, float value)
+{
+    if (idx >= NUM_PARAMS) {
+        return false;
+    }
+    return param_set_and_save_by_key(param_info_table[idx].key, value);
+}
+
+bool param_set_and_save_by_key(enum param_key_t key, float value)
 {
     int16_t param_idx = param_get_index(key);
     if (page_in_use == NULL || param_idx == -1) {
@@ -197,8 +214,11 @@ bool param_set_and_save(enum param_key_t key, float value)
 }
 
 static struct param_page_t* param_get_most_recent_valid_page(void) {
-    bool page_A_valid = page_A.header.data.format_version == PARAM_FORMAT_VERSION && page_A.header.data_crc16 == param_get_header_data_crc16(&page_A.header.data);
-    bool page_B_valid = page_B.header.data.format_version == PARAM_FORMAT_VERSION && page_B.header.data_crc16 == param_get_header_data_crc16(&page_B.header.data);
+    volatile uint16_t page_A_crc16_computed = param_get_header_data_crc16(&page_A.header.data);
+    volatile uint16_t page_B_crc16_computed = param_get_header_data_crc16(&page_B.header.data);
+
+    bool page_A_valid = page_A.header.data.format_version == PARAM_FORMAT_VERSION && page_A.header.data_crc16 == page_A_crc16_computed;
+    bool page_B_valid = page_B.header.data.format_version == PARAM_FORMAT_VERSION && page_B.header.data_crc16 == page_B_crc16_computed;
 
     if (!page_A_valid && !page_B_valid) {
         return NULL;
@@ -301,7 +321,7 @@ static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple)
     return crc16_ccitt((char*)tuple, sizeof(struct param_tuple_t), 0);
 }
 
-static bool param_flash_program_half_word(uint16_t* addr, uint16_t value)
+static bool __attribute__ ((noinline)) param_flash_program_half_word(uint16_t* addr, uint16_t value)
 {
     bool ret;
     // 1. Check that no main Flash memory operation is ongoing by checking the BSY bit in the FLASH_SR register.
@@ -318,10 +338,12 @@ static bool param_flash_program_half_word(uint16_t* addr, uint16_t value)
     // also clear PG for good measure
     FLASH_CR &= ~FLASH_CR_PG;
 
+    flash_wait_for_last_operation();
+
     return ret;
 }
 
-static bool param_flash_erase_page(uint32_t addr)
+static bool __attribute__ ((noinline)) param_flash_erase_page(uint32_t addr)
 {
     bool ret;
     // 1. Check that no Flash memory operation is ongoing by checking the BSY bit in the FLASH_CR register.
@@ -345,7 +367,7 @@ static bool param_flash_erase_page(uint32_t addr)
 
 static int16_t param_get_index(enum param_key_t key)
 {
-    uint8_t i;
+    uint16_t i;
     for(i=0; i<NUM_PARAMS; i++) {
         if(param_info_table[i].key == key) {
             return i;

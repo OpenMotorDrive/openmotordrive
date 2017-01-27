@@ -18,9 +18,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+
+#define PARAM_MAX_NAME_LEN 92
+
 // NOTE: once a parameter is added to this enum, it can never be removed
 enum param_key_t {
-    PARAM_ESC_MOT_KV=0,
+    PARAM_UNKNOWN = 0,
+    PARAM_ESC_MOT_KV,
     PARAM_ESC_MOT_POLES,
     PARAM_ESC_MOT_R,
     PARAM_ESC_FOC_P,
@@ -30,13 +34,25 @@ enum param_key_t {
     PARAM_ESC_MOT_L_D,
     PARAM_ESC_MOT_L_Q,
     PARAM_UAVCAN_NODE_ID,
+    PARAM_UAVCAN_ESC_ID
+};
+
+struct param_info_s {
+    enum param_key_t key;
+    char name[PARAM_MAX_NAME_LEN+1];
+    float default_val;
+    float min_val;
+    float max_val;
+    bool int_val;
 };
 
 void param_init(void);
-bool param_set_and_save(enum param_key_t key, float value);
+bool param_set_and_save_by_index(uint16_t idx, float value);
+bool param_set_and_save_by_key(enum param_key_t key, float value);
 float* param_retrieve_by_key(enum param_key_t key);
 float* param_retrieve_by_index(uint16_t idx);
-bool param_get_name_value_by_index(uint8_t idx, char* name, float* value);
+int16_t param_get_index_by_name(char* name);
+bool param_get_info_by_index(uint8_t idx, const struct param_info_s** info);
 void param_erase(void);
 void param_squash(void);
 uint8_t param_get_num_params(void);
