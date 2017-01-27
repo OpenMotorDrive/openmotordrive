@@ -84,7 +84,6 @@ static bool param_flash_erase_page(uint32_t addr);
 static uint16_t param_get_header_data_crc16(struct param_header_data_t* header_data);
 static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple);
 static int16_t param_get_index(enum param_key_t key);
-static uint64_t hash_fnv_1a(uint32_t len, uint8_t* buf);
 
 void param_erase(void)
 {
@@ -353,18 +352,4 @@ static int16_t param_get_index(enum param_key_t key)
         }
     }
     return -1;
-}
-
-#define FNV_1_OFFSET_BASIS_64 14695981039346656037UL
-#define FNV_1_PRIME_64 1099511628211UL
-
-static uint64_t hash_fnv_1a(uint32_t len, uint8_t* buf)
-{
-    uint64_t hash = FNV_1_OFFSET_BASIS_64;
-    uint32_t i;
-    for (i=0; i<len; i++) {
-        hash ^= (uint64_t)buf[i];
-        hash *= FNV_1_PRIME_64;
-    }
-    return hash;
 }

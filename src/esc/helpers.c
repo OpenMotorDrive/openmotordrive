@@ -66,6 +66,22 @@ float cosf_fast(float x)
     return sinf_fast(x+M_PI_F/2.0f);
 }
 
+
+// FNV-1a implementation
+#define FNV_1_OFFSET_BASIS_64 14695981039346656037UL
+#define FNV_1_PRIME_64 1099511628211UL
+
+uint64_t hash_fnv_1a(uint32_t len, uint8_t* buf)
+{
+    uint64_t hash = FNV_1_OFFSET_BASIS_64;
+    uint32_t i;
+    for (i=0; i<len; i++) {
+        hash ^= (uint64_t)buf[i];
+        hash *= FNV_1_PRIME_64;
+    }
+    return hash;
+}
+
 // CRC16 implementation according to CCITT standards
 // copied from: https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Math/edc.cpp
 static const uint16_t crc16tab[256] = {
