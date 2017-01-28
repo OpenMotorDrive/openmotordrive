@@ -45,17 +45,17 @@ void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample) {
     } else if (waiting_to_start && !started && t > 0.1f) {
         tbegin_us = micros();
         started = true;
-        motor_set_mode(MOTOR_MODE_PHASE_VOLTAGE_TEST);
-    } else if (started && t > t_max && motor_get_mode() != MOTOR_MODE_DISABLED) {
+        motor_set_mode(MOTOR_MODE_SPEED_CONTROL);
+    }/* else if (started && t > t_max && motor_get_mode() != MOTOR_MODE_DISABLED) {
         motor_set_mode(MOTOR_MODE_DISABLED);
-    }
+    }*/
 
-    motor_set_iq_ref(5.0f);
+    motor_set_omega_ref(t*0.5f);
     motor_update_state(dt, adc_sample);
     motor_run_commutation(dt);
     motor_update_ekf(dt);
 
-    if (started && motor_get_mode() != MOTOR_MODE_DISABLED) {
-        motor_print_data(dt);
-    }
+//     if (started && motor_get_mode() != MOTOR_MODE_DISABLED) {
+//         motor_print_data(dt);
+//     }
 }
