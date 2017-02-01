@@ -25,6 +25,7 @@ enum motor_mode_t {
     MOTOR_MODE_ENCODER_CALIBRATION,
     MOTOR_MODE_PHASE_VOLTAGE_TEST,
     MOTOR_MODE_SPEED_CONTROL,
+    MOTOR_MODE_DUTY_CONTROL
 };
 
 void motor_init(void);
@@ -42,3 +43,4 @@ float motor_get_iq_meas(void);
 void motor_print_data(float dt);
 void motor_update_ekf(float dt);
 void motor_set_omega_ref(float val);
+void motor_set_duty_ref(float val);
