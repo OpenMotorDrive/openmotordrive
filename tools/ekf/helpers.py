@@ -9,8 +9,8 @@ class CCodePrinter_float(CCodePrinter):
         self.known_functions = {
             "Abs": [(lambda x: not x.is_integer, "fabsf")],
             "gamma": "tgammaf",
-            "sin": "sinf",
-            "cos": "cosf",
+            "sin": "sinf_fast",
+            "cos": "cosf_fast",
             "tan": "tanf",
             "asin": "asinf",
             "acos": "acosf",
