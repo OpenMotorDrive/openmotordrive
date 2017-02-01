@@ -61,7 +61,7 @@ void serial_init(void)
     // set up recv interrupt
     nvic_enable_irq(NVIC_USART1_EXTI25_IRQ);
     USART_CR1(USART1) |= 1UL<<15; // OVER8
-    USART_CR1(USART1) |= 1UL<<5; // RXNEIE=1
+//     USART_CR1(USART1) |= 1UL<<5; // RXNEIE=1
 
     usart_enable(USART1);
 }
