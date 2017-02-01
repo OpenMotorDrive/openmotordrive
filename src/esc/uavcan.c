@@ -46,6 +46,14 @@
 #define UAVCAN_RESTARTNODE_DATA_TYPE_ID                             5
 #define UAVCAN_RESTARTNODE_DATA_TYPE_SIGNATURE                      0x569e05394a3017f0
 
+#define UAVCAN_ESC_STATUS_MESSAGE_SIZE                              BIT_LEN_TO_SIZE(110)
+#define UAVCAN_ESC_STATUS_DATA_TYPE_ID                              1034
+#define UAVCAN_ESC_STATUS_DATA_TYPE_SIGNATURE                       0xa9af28aea2fbb254
+
+#define UAVCAN_DEBUG_KEYVALUE_MESSAGE_MAX_SIZE                      BIT_LEN_TO_SIZE(502)
+#define UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_ID                          16370
+#define UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_SIGNATURE                   0xe02f25d6e0c98ae0
+
 #define UAVCAN_PARAM_VALUE_FLOAT_SIZE                               5
 
 #define UAVCAN_NODE_HEALTH_OK                                       0
@@ -144,6 +152,16 @@ void uavcan_update(void)
 void uavcan_set_restart_cb(restart_handler_ptr cb)
 {
     restart_cb = cb;
+}
+
+void uavcan_send_debug_key_value(const char* name, float val)
+{
+    size_t name_len = strlen(name);
+    uint8_t msg_buf[UAVCAN_DEBUG_KEYVALUE_MESSAGE_MAX_SIZE];
+    memcpy(&msg_buf[0], &val, sizeof(float));
+    memcpy(&msg_buf[4], name, name_len);
+    uint8_t transfer_id;
+    canardBroadcast(&canard, UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_SIGNATURE, UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_ID, &transfer_id, CANARD_TRANSFER_PRIORITY_LOWEST, msg_buf, sizeof(float)+name_len);
 }
 
 // Node ID allocation - implementation of http://uavcan.org/Specification/figures/dynamic_node_id_allocatee_algorithm.svg
@@ -343,7 +361,8 @@ static void handle_param_getset_request(CanardInstance* ins, CanardRxTransfer* t
     int16_t param_idx;
     uint8_t value_type;
     uint8_t value_len;
-    float req_value;
+    float req_value_float;
+    int64_t req_value_int;
     uint8_t i;
     char param_name[PARAM_MAX_NAME_LEN+1];
     size_t param_name_len;
@@ -362,7 +381,6 @@ static void handle_param_getset_request(CanardInstance* ins, CanardRxTransfer* t
             break;
         case 2: // float32
             value_len = 4;
-            canardDecodeScalar(transfer, 16, 32, true, &req_value);
             break;
         case 3: // uint8
             value_len = 1;
@@ -394,7 +412,14 @@ static void handle_param_getset_request(CanardInstance* ins, CanardRxTransfer* t
         // Param exists
         if (value_type == 2) {
             // Set request - attempt to set parameter
-            param_set_and_save_by_index(param_idx, req_value);
+            float val;
+            canardDecodeScalar(transfer, 16, 32, true, &val);
+            param_set_and_save_by_index(param_idx, val);
+        } else if (value_type == 1) {
+            int64_t val;
+            canardDecodeScalar(transfer, 16, 64, true, &val);
+            param_set_and_save_by_index(param_idx, (float)val);
+
         }
 
         float* param_val = param_retrieve_by_index(param_idx);
