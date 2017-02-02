@@ -23,7 +23,7 @@ build/bin/%.elf: $(COMMON_OBJS) build/canard.o build/src/programs/%.o
 	@arm-none-eabi-gcc $(LDFLAGS) $(ARCH_FLAGS) $^ $(LDLIBS) -o $@
 	@arm-none-eabi-size $@
 
-build/%.bin: build/%.elf
+build/bin/%.bin: build/bin/%.elf
 	@echo "### BUILDING $@"
 	@mkdir -p "$(dir $@)"
 	@arm-none-eabi-objcopy -O binary $< $@
@@ -46,12 +46,13 @@ $(LIBOPENCM3_DIR):
 	@$(MAKE) -C $(LIBOPENCM3_DIR)
 
 .PHONY: %-upload
-%-upload: build/bin/%.elf
+.PRECIOUS: build/bin/%.bin
+%-upload: build/bin/%.elf build/bin/%.bin
 	@echo "### UPLOADING"
 	@openocd -f openocd.cfg -c "program $< verify reset exit"
 
 .PHONY: %
-%: build/bin/%.elf ;
+%: build/bin/%.elf build/bin/%.bin ;
 
 .PHONY: clean
 clean:
