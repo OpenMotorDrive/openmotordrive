@@ -34,5 +34,6 @@ float constrain_float(float val, float min_val, float max_val);
 float wrap_1(float x);
 float wrap_2pi(float val);
 float wrap_pi(float val);
-uint64_t hash_fnv_1a(uint32_t len, uint8_t* buf);
+uint64_t hash_fnv_1a(uint32_t len, const uint8_t* buf);
 uint16_t crc16_ccitt(const char *buf, uint32_t len, uint16_t crc);
+uint32_t crc32(const uint8_t *buf, uint32_t len, uint32_t crc);

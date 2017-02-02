@@ -3,9 +3,8 @@
 /* Define memory regions. */
 MEMORY
 {
-    rom (rx) :          ORIGIN = 0x08000000, LENGTH = 60K
-    param_page_a (rx) : ORIGIN = 0x0800F000, LENGTH =  2K
-    param_page_b (rx) : ORIGIN = 0x0800F800, LENGTH =  2K
+    rom (rx) :          ORIGIN = 0x08000000, LENGTH = 62K
+    params (rx) :       ORIGIN = 0x0800F800, LENGTH =  2K
     ram (rwx) :         ORIGIN = 0x20000000, LENGTH = 16K
 }
 
@@ -26,11 +25,8 @@ SECTIONS
         . = ALIGN(4);
     } >rom
 
-    .param_page_a (NOLOAD) : {
-    } >param_page_a
-
-    .param_page_b (NOLOAD) : {
-    } >param_page_b
+    .params (NOLOAD) : {
+    } >params
 
     /* C++ Static constructors/destructors, also used for __attribute__
         * ((constructor)) and the likes */

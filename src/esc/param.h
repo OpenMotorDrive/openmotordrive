@@ -21,25 +21,8 @@
 
 #define PARAM_MAX_NAME_LEN 92
 
-// NOTE: once a parameter is added to this enum, it can never be removed
-enum param_key_t {
-    PARAM_UNKNOWN = 0,
-    PARAM_ESC_MOT_KV,
-    PARAM_ESC_MOT_POLES,
-    PARAM_ESC_MOT_R,
-    PARAM_ESC_FOC_P,
-    PARAM_ESC_FOC_I,
-    PARAM_ESC_ENC_MBIAS,
-    PARAM_ESC_ENC_EBIAS,
-    PARAM_ESC_MOT_L_D,
-    PARAM_ESC_MOT_L_Q,
-    PARAM_UAVCAN_NODE_ID,
-    PARAM_UAVCAN_ESC_ID
-};
-
 struct param_info_s {
-    enum param_key_t key;
-    char name[PARAM_MAX_NAME_LEN+1];
+    const char* name;
     float default_val;
     float min_val;
     float max_val;
@@ -47,11 +30,11 @@ struct param_info_s {
 };
 
 void param_init(void);
-bool param_set_and_save_by_index(uint16_t idx, float value);
-bool param_set_and_save_by_key(enum param_key_t key, float value);
-float* param_retrieve_by_key(enum param_key_t key);
+void param_write(void);
+
 float* param_retrieve_by_index(uint16_t idx);
-int16_t param_get_index_by_name(char* name);
+float* param_retrieve_by_name(const char* name);
+int16_t param_get_index_by_name(const char* name);
 bool param_get_info_by_index(uint8_t idx, const struct param_info_s** info);
 void param_erase(void);
 void param_squash(void);

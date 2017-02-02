@@ -103,7 +103,7 @@ void uavcan_init(void)
 {
     desig_get_unique_id((uint32_t*)&node_unique_id[0]);
     canardInit(&canard, canard_memory_pool, sizeof(canard_memory_pool), onTransferReceived, shouldAcceptTransfer);
-    canardSetLocalNodeID(&canard, *param_retrieve_by_key(PARAM_UAVCAN_NODE_ID));
+    canardSetLocalNodeID(&canard, *param_retrieve_by_name("uavcan.id-uavcan.equipment.esc-esc_index"));
     allocation_init();
 }
 
@@ -345,6 +345,7 @@ static void handle_param_opcode_request(CanardInstance* ins, CanardRxTransfer* t
 
     switch(opcode) {
         case 0:
+            param_write();
             canardEncodeScalar(resp_buf, 48, 1, &OK);
             break;
         case 1:
@@ -361,8 +362,6 @@ static void handle_param_getset_request(CanardInstance* ins, CanardRxTransfer* t
     int16_t param_idx;
     uint8_t value_type;
     uint8_t value_len;
-    float req_value_float;
-    int64_t req_value_int;
     uint8_t i;
     char param_name[PARAM_MAX_NAME_LEN+1];
     size_t param_name_len;
@@ -414,12 +413,11 @@ static void handle_param_getset_request(CanardInstance* ins, CanardRxTransfer* t
             // Set request - attempt to set parameter
             float val;
             canardDecodeScalar(transfer, 16, 32, true, &val);
-            param_set_and_save_by_index(param_idx, val);
+            *param_retrieve_by_index(param_idx) = val;
         } else if (value_type == 1) {
             int64_t val;
             canardDecodeScalar(transfer, 16, 64, true, &val);
-            param_set_and_save_by_index(param_idx, (float)val);
-
+            *param_retrieve_by_index(param_idx) = (float)val;
         }
 
         float* param_val = param_retrieve_by_index(param_idx);

@@ -22,137 +22,141 @@
 #include <string.h>
 #include <libopencm3/stm32/flash.h>
 
-#define PARAM_FORMAT_VERSION 0
+#define PARAM_FORMAT_VERSION 1
+#define PARAM_STORE_SIZE 2048
 
-struct param_header_data_t {
+// The parameter store consists of a format version, followed by the number of parameters stored, followed by N parameter entries, followed by a crc32 of all previous data
+struct param_header_s {
     uint16_t format_version;
-    uint16_t seq;
+    uint16_t num_params;
 };
 
-struct param_header_t {
-    struct param_header_data_t data;
-    uint16_t data_crc16;
+struct param_entry_s {
+    uint64_t key;
+    float val;
 };
 
-struct param_tuple_t {
-    enum param_key_t key;
-    float value;
-};
+static uint8_t param_store[PARAM_STORE_SIZE] __attribute__((section(".params")));
+static struct param_header_s* const param_header = (struct param_header_s*)&param_store[0];
+static struct param_entry_s* const param_entries = (struct param_entry_s*)&param_store[sizeof(struct param_header_s)];
 
-struct param_journal_entry_t {
-    struct param_tuple_t data;
-    uint16_t data_crc16;
-    uint16_t invalid;
-};
-
-#define ENTRIES_PER_PAGE ((2048-sizeof(struct param_header_t))/sizeof(struct param_journal_entry_t))
-
-struct param_page_t {
-    struct param_header_t header;
-    struct param_journal_entry_t journal[ENTRIES_PER_PAGE];
-};
-
-
+#define MAX_NUM_PARAM_ENTRIES ((PARAM_STORE_SIZE-sizeof(struct param_header_s)-sizeof(uint32_t))/sizeof(struct param_entry_s))
 
 static const struct param_info_s param_info_table[] = {
-    {.key = PARAM_ESC_ENC_MBIAS,  .name = "ESC_ENC_MBIAS",                            .default_val =   0.0f, .min_val = -M_PI_F, .max_val = M_PI_F, .int_val=false},
-    {.key = PARAM_ESC_ENC_EBIAS,  .name = "ESC_ENC_EBIAS",                            .default_val =   0.0f, .min_val = -M_PI_F, .max_val = M_PI_F, .int_val=false},
-    {.key = PARAM_ESC_MOT_KV,     .name = "ESC_MOT_KV",                               .default_val =   0.0f, .min_val =       0, .max_val = 100000, .int_val=false},
-    {.key = PARAM_ESC_MOT_POLES,  .name = "ESC_MOT_POLES",                            .default_val =   7.0f, .min_val =       1, .max_val = 100,    .int_val=false},
-    {.key = PARAM_ESC_MOT_R,      .name = "ESC_MOT_R",                                .default_val =   0.1f, .min_val =       0, .max_val = 100,    .int_val=false},
-    {.key = PARAM_ESC_MOT_L_D,    .name = "ESC_MOT_L_D",                              .default_val = 40e-6f, .min_val =       0, .max_val = 1e-3f,  .int_val=false},
-    {.key = PARAM_ESC_MOT_L_Q,    .name = "ESC_MOT_L_Q",                              .default_val = 70e-6f, .min_val =       0, .max_val = 1e-3f,  .int_val=false},
-    {.key = PARAM_ESC_FOC_P,      .name = "ESC_FOC_P",                                .default_val =   0.0f, .min_val =       0, .max_val = 30,     .int_val=false},
-    {.key = PARAM_ESC_FOC_I,      .name = "ESC_FOC_I",                                .default_val =   0.0f, .min_val =       0, .max_val = 30000,  .int_val=false},
-    {.key = PARAM_UAVCAN_NODE_ID, .name = "uavcan.node_id",                           .default_val =   0.0f, .min_val =       0, .max_val = 127,    .int_val=true},
-    {.key = PARAM_UAVCAN_ESC_ID,  .name = "uavcan.id-uavcan.equipment.esc-esc_index", .default_val =   0.0f, .min_val =       0, .max_val = 32,     .int_val=true},
+    {.name = "ESC_ENC_MBIAS",                            .default_val =   0.0f, .min_val = -M_PI_F, .max_val = M_PI_F, .int_val=false},
+    {.name = "ESC_ENC_EBIAS",                            .default_val =   0.0f, .min_val = -M_PI_F, .max_val = M_PI_F, .int_val=false},
+    {.name = "ESC_MOT_KV",                               .default_val =   0.0f, .min_val =       0, .max_val = 100000, .int_val=false},
+    {.name = "ESC_MOT_POLES",                            .default_val =   7.0f, .min_val =       1, .max_val = 100,    .int_val=false},
+    {.name = "ESC_MOT_R",                                .default_val =   0.1f, .min_val =       0, .max_val = 100,    .int_val=false},
+    {.name = "ESC_MOT_L_D",                              .default_val = 40e-6f, .min_val =       0, .max_val = 1e-3f,  .int_val=false},
+    {.name = "ESC_MOT_L_Q",                              .default_val = 70e-6f, .min_val =       0, .max_val = 1e-3f,  .int_val=false},
+    {.name = "ESC_FOC_P",                                .default_val =   0.0f, .min_val =       0, .max_val = 30,     .int_val=false},
+    {.name = "ESC_FOC_I",                                .default_val =   0.0f, .min_val =       0, .max_val = 30000,  .int_val=false},
+    {.name = "uavcan.node_id",                           .default_val =   0.0f, .min_val =       0, .max_val = 127,    .int_val=true},
+    {.name = "uavcan.id-uavcan.equipment.esc-esc_index", .default_val =   0.0f, .min_val =       0, .max_val = 32,     .int_val=true},
 };
 
-#define NUM_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))
+#define NUM_DEFINED_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))
 
-static struct param_page_t page_A __attribute__((section(".param_page_a")));
-static struct param_page_t page_B __attribute__((section(".param_page_b")));
-static struct param_page_t* page_in_use = NULL;
-static bool squash_needed = false;
-static float param_cache[NUM_PARAMS];
-static uint8_t param_has_entry[NUM_PARAMS];
+static uint64_t param_hashes[NUM_DEFINED_PARAMS];
+static float param_cache[NUM_DEFINED_PARAMS];
 
-static struct param_page_t* param_get_most_recent_valid_page(void);
-static bool param_append_to_page(const struct param_page_t* page, enum param_key_t key, float value);
+static bool param_store_unwritten(void);
+static bool param_check_crc(void);
+static int16_t param_get_index_by_hash(uint64_t hash);
+static void param_erase_store(void);
 static bool param_flash_program_half_word(uint16_t* addr, uint16_t value);
 static bool param_flash_erase_page(uint32_t addr);
-static uint16_t param_get_header_data_crc16(struct param_header_data_t* header_data);
-static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple);
-static int16_t param_get_index(enum param_key_t key);
+
+void param_init(void)
+{
+    uint16_t i;
+
+    // initialize value cache to default value and pre-compute all hashes
+    // TODO: somehow compute hashes at compile-time
+    for(i=0; i<NUM_DEFINED_PARAMS; i++) {
+        param_cache[i] = param_info_table[i].default_val;
+        param_hashes[i] = hash_fnv_1a(strlen(param_info_table[i].name), (uint8_t*)param_info_table[i].name);
+    }
+
+    // validate parameter table, erase if invalid
+    if (param_header->format_version != PARAM_FORMAT_VERSION || param_header->num_params > MAX_NUM_PARAM_ENTRIES || !param_check_crc()) {
+        param_write();
+    } else {
+        // load parameter values
+        for(i=0; i<param_header->num_params; i++) {
+            int16_t idx = param_get_index_by_hash(param_entries[i].key);
+            if (idx != -1) {
+                param_cache[idx] = param_entries[i].val;
+            }
+        }
+    }
+}
 
 void param_erase(void)
 {
-    flash_unlock();
-    param_flash_erase_page((uint32_t)&page_A);
-    param_flash_erase_page((uint32_t)&page_B);
-    flash_lock();
+    param_erase_store();
 
     uint8_t i;
-    for(i=0; i<NUM_PARAMS; i++) {
+    for(i=0; i<NUM_DEFINED_PARAMS; i++) {
         param_cache[i] = param_info_table[i].default_val;
     }
 }
 
-void param_init(void)
+void param_write(void)
 {
-    uint8_t i;
-    for(i=0; i<NUM_PARAMS; i++) {
-        param_cache[i] = param_info_table[i].default_val;
+    if (!param_store_unwritten()) {
+        param_erase_store();
     }
-    page_in_use = param_get_most_recent_valid_page();
+    uint16_t param_idx, i;
+    uint32_t crc = 0;
 
-    if (page_in_use == NULL) {
-        flash_unlock();
-        param_flash_erase_page((uint32_t)&page_A);
-        param_flash_program_half_word(&page_A.header.data.format_version, PARAM_FORMAT_VERSION);
-        param_flash_program_half_word(&page_A.header.data.seq, 0);
-        param_flash_program_half_word(&page_A.header.data_crc16, param_get_header_data_crc16(&page_A.header.data));
-        flash_lock();
-        page_in_use = &page_A;
-        return;
-    }
+    uint16_t* write_addr = (uint16_t*)param_store;
 
-    // load parameter values and determine if the journal needs to be squashed
-    for(i=0; i<ENTRIES_PER_PAGE; i++) {
-        if (page_in_use->journal[i].invalid) {
-            break;
+    flash_unlock();
+
+    struct param_header_s new_header = {PARAM_FORMAT_VERSION, 0};
+    for (param_idx = 0; param_idx < NUM_DEFINED_PARAMS; param_idx++) {
+        if (param_cache[param_idx] != param_info_table[param_idx].default_val) {
+            new_header.num_params++;
         }
+    }
 
-        int16_t param_idx = param_get_index(page_in_use->journal[i].data.key);
+    for (i = 0; i < sizeof(struct param_header_s)/2; i++) {
+        param_flash_program_half_word(write_addr++, ((uint16_t*)&new_header)[i]);
+    }
+    crc = crc32((uint8_t*)&new_header, sizeof(struct param_header_s), crc);
 
-        if (param_idx != -1 && page_in_use->journal[i].data_crc16 == param_get_tuple_crc16(&(page_in_use->journal[i].data))) {
-            param_cache[param_idx] = page_in_use->journal[i].data.value;
-            if (param_has_entry[param_idx]) {
-                squash_needed = true;
+    for (param_idx=0; param_idx<NUM_DEFINED_PARAMS; param_idx++) {
+        if (param_cache[param_idx] != param_info_table[param_idx].default_val) {
+            struct param_entry_s new_entry = {param_hashes[param_idx], param_cache[param_idx]};
+
+            for (i=0; i<sizeof(struct param_entry_s)/2; i++) {
+                param_flash_program_half_word(write_addr++, ((uint16_t*)&new_entry)[i]);
             }
-            param_has_entry[param_idx] = true;
-        } else {
-            squash_needed = true;
+            crc = crc32((uint8_t*)&new_entry, sizeof(struct param_entry_s), crc);
         }
     }
 
-    // squash the journal if required
-    param_squash();
+    for (i=0; i<sizeof(uint32_t)/2; i++) {
+        param_flash_program_half_word(write_addr, ((uint16_t*)&crc)[i]);
+    }
+    flash_lock();
 }
 
 uint8_t param_get_num_params(void)
 {
-    return NUM_PARAMS;
+    return NUM_DEFINED_PARAMS;
 }
 
-float* param_retrieve_by_key(enum param_key_t key)
+float* param_retrieve_by_name(const char* name)
 {
-    return param_retrieve_by_index(param_get_index(key));
+    return param_retrieve_by_index(param_get_index_by_name(name));
 }
 
 float* param_retrieve_by_index(uint16_t idx)
 {
-    if (idx >= NUM_PARAMS) {
+    if (idx >= NUM_DEFINED_PARAMS) {
         return NULL;
     }
     return &param_cache[idx];
@@ -160,12 +164,12 @@ float* param_retrieve_by_index(uint16_t idx)
 
 bool param_index_in_range(uint8_t idx)
 {
-    return idx < NUM_PARAMS;
+    return idx < NUM_DEFINED_PARAMS;
 }
 
 bool param_get_info_by_index(uint8_t idx, const struct param_info_s** info)
 {
-    if (idx >= NUM_PARAMS) {
+    if (idx >= NUM_DEFINED_PARAMS) {
         return false;
     }
 
@@ -174,9 +178,9 @@ bool param_get_info_by_index(uint8_t idx, const struct param_info_s** info)
     return true;
 }
 
-int16_t param_get_index_by_name(char* name) {
+int16_t param_get_index_by_name(const char* name) {
     uint16_t i;
-    for(i=0; i<NUM_PARAMS; i++) {
+    for(i=0; i<NUM_DEFINED_PARAMS; i++) {
         if(strncmp(name, param_info_table[i].name, PARAM_MAX_NAME_LEN) == 0) {
             return i;
         }
@@ -184,141 +188,44 @@ int16_t param_get_index_by_name(char* name) {
     return -1;
 }
 
-bool param_set_and_save_by_index(uint16_t idx, float value)
+static bool param_store_unwritten()
 {
-    if (idx >= NUM_PARAMS) {
-        return false;
-    }
-    return param_set_and_save_by_key(param_info_table[idx].key, value);
-}
-
-bool param_set_and_save_by_key(enum param_key_t key, float value)
-{
-    int16_t param_idx = param_get_index(key);
-    if (page_in_use == NULL || param_idx == -1) {
-        return false;
-    }
-
-    bool success;
-    success = param_append_to_page(page_in_use, key, value);
-    if (!success && squash_needed) {
-        param_squash();
-        success = param_append_to_page(page_in_use, key, value);
-    }
-
-    if(success) {
-        param_cache[param_idx] = value;
-    }
-
-    return success;
-}
-
-static struct param_page_t* param_get_most_recent_valid_page(void) {
-    volatile uint16_t page_A_crc16_computed = param_get_header_data_crc16(&page_A.header.data);
-    volatile uint16_t page_B_crc16_computed = param_get_header_data_crc16(&page_B.header.data);
-
-    bool page_A_valid = page_A.header.data.format_version == PARAM_FORMAT_VERSION && page_A.header.data_crc16 == page_A_crc16_computed;
-    bool page_B_valid = page_B.header.data.format_version == PARAM_FORMAT_VERSION && page_B.header.data_crc16 == page_B_crc16_computed;
-
-    if (!page_A_valid && !page_B_valid) {
-        return NULL;
-    }
-
-    if (!page_B_valid || (int16_t)(page_A.header.data.seq-page_B.header.data.seq) > 0) {
-        return &page_A;
-    } else {
-        return &page_B;
-    }
-}
-
-void param_squash(void)
-{
-    if (!squash_needed) {
-        return;
-    }
-
-    uint8_t i=0;
-
-    struct param_page_t* next_page = (page_in_use == &page_A) ? &page_B : &page_A;
-
-    flash_unlock();
-    param_flash_erase_page((uint32_t)next_page);
-    flash_lock();
-
-    for(i=0; i<NUM_PARAMS; i++) {
-        int16_t k = param_info_table[i].key;
-        if(param_has_entry[k]) {
-            param_append_to_page(next_page, k, param_cache[k]);
-        }
-    }
-
-    flash_unlock();
-    param_flash_program_half_word(&next_page->header.data.format_version, PARAM_FORMAT_VERSION);
-    param_flash_program_half_word(&next_page->header.data.seq, (uint16_t)(page_in_use->header.data.seq+1));
-    param_flash_program_half_word(&next_page->header.data_crc16, param_get_header_data_crc16(&next_page->header.data));
-    flash_lock();
-
-    page_in_use = next_page;
-}
-
-static bool param_append_to_page(const struct param_page_t* page, enum param_key_t key, float value)
-{
-    uint8_t i=0;
-    int16_t param_idx = param_get_index(key);
-
-    if (param_idx == -1) {
-        return false;
-    }
-
-    struct param_journal_entry_t entry;
-
-    entry.data.key = key;
-    entry.data.value = value;
-    entry.data_crc16 = param_get_tuple_crc16(&(entry.data));
-    entry.invalid = 0;
-
-    bool already_set = false;
-
-    while (true) {
-        if (i >= ENTRIES_PER_PAGE) {
+    uint32_t i;
+    for (i=0; i<PARAM_STORE_SIZE; i++) {
+        if (param_store[i] != 0xFF) {
             return false;
         }
-        if (page->journal[i].invalid) {
-            break;
-        }
-        already_set = page->journal[i].data.key == entry.data.key && page->journal[i].data.value == entry.data.value && page->journal[i].data_crc16 == entry.data_crc16;
-        i++;
     }
-    if (already_set) {
-        return true;
-    }
-
-    uint16_t* src_buf = (uint16_t*)&entry;
-    uint16_t* dest_buf = (uint16_t*)&page->journal[i];
-    uint8_t n = sizeof(entry)/2;
-
-    flash_unlock();
-    for(i=0; i<n; i++) {
-        param_flash_program_half_word(&(dest_buf[i]), src_buf[i]);
-    }
-    flash_lock();
-
-    if (param_has_entry[param_idx]) {
-        squash_needed = true;
-    }
-    param_has_entry[param_idx] = true;
 
     return true;
 }
 
-static uint16_t param_get_header_data_crc16(struct param_header_data_t* header_data)
+static bool param_check_crc()
 {
-    return crc16_ccitt((char*)header_data, sizeof(struct param_header_data_t), 0);
+    size_t crc_data_size = sizeof(struct param_header_s) + sizeof(struct param_entry_s) * param_header->num_params;
+    uint32_t crc32_computed;
+    uint32_t crc32_provided;
+    crc32_computed = crc32(param_store, crc_data_size, 0);
+    memcpy(&crc32_provided, &param_store[crc_data_size], sizeof(uint32_t));
+    return crc32_computed == crc32_provided;
 }
 
-static uint16_t param_get_tuple_crc16(struct param_tuple_t* tuple)
+static int16_t param_get_index_by_hash(uint64_t hash)
 {
-    return crc16_ccitt((char*)tuple, sizeof(struct param_tuple_t), 0);
+    uint16_t i;
+    for (i=0; i<NUM_DEFINED_PARAMS; i++) {
+        if (param_hashes[i] == hash) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void param_erase_store(void)
+{
+    flash_unlock();
+    param_flash_erase_page((uint32_t)&param_store);
+    flash_lock();
 }
 
 static bool __attribute__ ((noinline)) param_flash_program_half_word(uint16_t* addr, uint16_t value)
@@ -363,15 +270,4 @@ static bool __attribute__ ((noinline)) param_flash_erase_page(uint32_t addr)
     FLASH_CR &= ~FLASH_CR_PER;
 
     return ret;
-}
-
-static int16_t param_get_index(enum param_key_t key)
-{
-    uint16_t i;
-    for(i=0; i<NUM_PARAMS; i++) {
-        if(param_info_table[i].key == key) {
-            return i;
-        }
-    }
-    return -1;
 }

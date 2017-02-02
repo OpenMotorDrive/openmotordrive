@@ -71,7 +71,7 @@ float cosf_fast(float x)
 #define FNV_1_OFFSET_BASIS_64 14695981039346656037UL
 #define FNV_1_PRIME_64 1099511628211UL
 
-uint64_t hash_fnv_1a(uint32_t len, uint8_t* buf)
+uint64_t hash_fnv_1a(uint32_t len, const uint8_t* buf)
 {
     uint64_t hash = FNV_1_OFFSET_BASIS_64;
     uint32_t i;
@@ -125,4 +125,19 @@ uint16_t crc16_ccitt(const char *buf, uint32_t len, uint16_t crc)
     for (i = 0; i < len; i++)
         crc = (crc << 8) ^ crc16tab[((crc >> 8) ^ *buf++) & 0x00FF];
     return crc;
+}
+
+uint32_t crc32(const uint8_t *buf, uint32_t len, uint32_t crc)
+{
+    uint32_t i;
+    uint8_t j;
+
+    crc = ~crc;
+    for (i = 0; i < len; i++) {
+        crc = crc ^ buf[i];
+        for (j = 0; j < 8; j++) {
+            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+        }
+    }
+    return ~crc;
 }
