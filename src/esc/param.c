@@ -139,8 +139,9 @@ void param_write(void)
     }
 
     for (i=0; i<sizeof(uint32_t)/2; i++) {
-        param_flash_program_half_word(write_addr, ((uint16_t*)&crc)[i]);
+        param_flash_program_half_word(write_addr++, ((uint16_t*)&crc)[i]);
     }
+
     flash_lock();
 }
 
