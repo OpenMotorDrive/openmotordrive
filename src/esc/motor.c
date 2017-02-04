@@ -29,18 +29,23 @@
 
 #include <esc/can.h>
 
+enum commutaton_method_t {
+    COMMUTATION_METHOD_SENSORLESS_EKF=0,
+    COMMUTATION_METHOD_ENCODER,
+};
+
 // config things - to be made params later
 static uint8_t mot_n_poles = 7;
 static float elec_theta_bias = 0.0f;
 // TODO support reverse
 static bool reverse = false;
-static const float curr_KR = 0.0f;
-static const float curr_KP = .1f;
-static const float curr_KI = 350.0f;
 static const float vsense_div = 20.0f;
 static const float csa_G = 10.0f;
 static const float csa_R = 0.001f;
 static const float calibration_voltage = 2.0f;
+static const float foc_bandwidth_hz = 200.0f;
+static const float start_current = 3.0f;
+static const enum commutaton_method_t commutation_method = COMMUTATION_METHOD_SENSORLESS_EKF;
 
 static uint32_t csa_meas_t_us = 0;
 static float csa_cal[3] = {0.0f, 0.0f, 0.0f}; // current sense amplifier calibration
@@ -89,7 +94,6 @@ static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, fl
 static void set_alpha_beta_output_duty(float duty_alpha, float duty_beta, float omega);
 static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC);
 
-static bool ekf_running = false;
 static uint8_t ekf_idx = 0;
 static float ekf_state[2][5];
 static float ekf_cov[2][15];
@@ -99,18 +103,17 @@ static const float R_s = 0.102f;
 static const float L_d = 28*1e-6f;
 static const float L_q = 43*1e-6f;
 static const float K_v = 360.0f;
-static const float J = 0.00003f;
+static const float J = 0.00004f;
 static const float N_P = 7.0f;
 static const float i_noise = 0.01f;
 static const float u_noise = 0.6f;
-static const float T_l_pnoise = 0.01f;
+static const float T_l_pnoise = 0.02f;
 
 static void ekf_init(float theta)
 {
     float* state = ekf_state[ekf_idx];
     float* cov = ekf_cov[ekf_idx];
 
-    ekf_running = true;
     state[0] = 0.0f; // omega
     state[1] = theta;
     state[2] = id_meas;
@@ -377,7 +380,7 @@ void motor_run_commutation(float dt)
             set_alpha_beta_output_duty(0, 0, 0);
             break;
 
-        case MOTOR_MODE_DUTY_CONTROL: {
+        case MOTOR_MODE_FOC_DUTY: {
             motor_set_iq_ref((duty_ref*vbatt_m - 6.36619772367581*mech_omega_est/K_v)/R_s);
             run_foc(dt);
             break;
@@ -491,7 +494,7 @@ void motor_set_duty_ref(float val)
 
 void motor_set_iq_ref(float iq_ref)
 {
-    iq_pid_param.i_ref = iq_ref;
+    iq_pid_param.i_ref = constrain_float(iq_ref,-50.0f,50.0f);
 }
 
 float motor_get_iq_meas(void)
@@ -563,25 +566,33 @@ static void update_estimates(float dt)
 
     transform_a_b_c_to_alpha_beta(ia_m, ib_m, ic_m, &i_alpha_m, &i_beta_m);
 
-    if (ekf_running) {
-        float* state = ekf_state[ekf_idx];
-        mech_omega_est = state[0];
-        elec_theta_est = state[1] + elec_omega_est*dt;
-    } else {
-        mech_omega_est = encoder_omega_est;
-        elec_theta_est = elec_theta_m;
+    switch (commutation_method) {
+        case COMMUTATION_METHOD_SENSORLESS_EKF: {
+            mech_omega_est = ekf_state[ekf_idx][0];
+            elec_omega_est = mech_omega_est * mot_n_poles;
+            elec_theta_est = ekf_state[ekf_idx][1] + elec_omega_est*dt;
+            break;
+        }
+        case COMMUTATION_METHOD_ENCODER: {
+            mech_omega_est = encoder_omega_est;
+            elec_omega_est = mech_omega_est * mot_n_poles;
+            elec_theta_est = elec_theta_m;
+            break;
+        }
     }
-    elec_omega_est = mech_omega_est * mot_n_poles;
-
 
     transform_alpha_beta_to_d_q(elec_theta_est, i_alpha_m, i_beta_m, &id_meas, &iq_meas);
 }
 
 static void load_pid_configs(void)
 {
-    id_pid_param.K_R = iq_pid_param.K_R = curr_KR;
-    id_pid_param.K_P = iq_pid_param.K_P = curr_KP;
-    id_pid_param.K_I = iq_pid_param.K_I = curr_KI;
+    float foc_bandwidth_rads = 2.0f*M_PI_F*foc_bandwidth_hz;
+
+    id_pid_param.K_P = L_d*foc_bandwidth_rads;
+    id_pid_param.K_I = id_pid_param.K_P * R_s/L_d;
+
+    iq_pid_param.K_P = L_q*foc_bandwidth_rads;
+    iq_pid_param.K_I = iq_pid_param.K_P * R_s/L_q;
 }
 
 static void transform_a_b_c_to_alpha_beta(float a, float b, float c, float* alpha, float* beta)
