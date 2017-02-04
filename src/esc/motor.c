@@ -54,10 +54,8 @@ static float elec_theta_m = 0.0f; // electrical rotor angle
 static float elec_theta_est = 0.0f;
 static float elec_omega_est = 0.0f;
 static float mech_omega_est = 0.0f; // mechanical rotor angular velocity
+static float encoder_omega_est = 0.0f; // mechanical rotor angular velocity
 static enum motor_mode_t motor_mode = MOTOR_MODE_DISABLED;
-static float omega_ref;
-static float omega_integrator;
-static float omega_err_filtered;
 static float duty_ref;
 
 // double-buffered phase output
@@ -258,7 +256,7 @@ void motor_print_data(float dt) {
     uint8_t slip_msg_len = 0;
     uint8_t i;
     uint32_t tnow_us = micros();
-    float omega_e = mech_omega_est*mot_n_poles;
+    float omega_e = encoder_omega_est*mot_n_poles;
     uint32_t adc_errcnt = adc_get_errcnt();
 
     float prev_u_alpha = phase_output[(phase_output_idx+1)%2].duty_alpha * vbatt_m;
@@ -328,7 +326,7 @@ void motor_init(void)
     // initialize encoder filter states
     retrieve_encoder_measurement();
     prev_mech_theta_m = mech_theta_m;
-    mech_omega_est = 0.0f;
+    encoder_omega_est = 0.0f;
 
     pwm_set_phase_duty_callback(calc_phase_duties);
 }
@@ -338,40 +336,6 @@ void motor_update_state(float dt, struct adc_sample_s* adc_sample)
     retrieve_encoder_measurement();
     process_adc_measurements(adc_sample);
     update_estimates(dt);
-}
-
-static void run_foc_duty_input(float dt)
-{
-    load_pid_configs();
-
-    id_pid_param.dt = iq_pid_param.dt = dt;
-
-    id_pid_param.i_meas = id_meas;
-    iq_pid_param.i_meas = iq_meas;
-
-    id_pid_param.i_ref = 0.0f;
-    iq_pid_param.i_ref = 0.0f;
-
-    id_pid_param.output_limit = vbatt_m/sqrtf(2.0f);
-
-    curr_pid_run(&id_pid_param, &id_pid_state);
-
-    float u_ref = duty_ref*vbatt_m;
-    float u_d = id_pid_state.output;
-    iq_pid_param.output_limit = sqrtf(MAX(SQ(id_pid_param.output_limit)-SQ(id_pid_state.output),0));
-    curr_pid_run(&iq_pid_param, &iq_pid_state);
-
-    float u_q;
-    if (u_ref >= 0) {
-        u_q = sqrtf(MAX(SQ(u_ref)-SQ(u_d),0));
-    } else {
-        u_q = -sqrtf(MAX(SQ(u_ref)-SQ(u_d),0));
-    }
-
-    float u_alpha, u_beta;
-    transform_d_q_to_alpha_beta(elec_theta_est, u_d, u_q, &u_alpha, &u_beta);
-
-    set_alpha_beta_output_duty(u_alpha/vbatt_m, u_beta/vbatt_m, elec_omega_est);
 }
 
 static void run_foc(float dt)
@@ -414,17 +378,7 @@ void motor_run_commutation(float dt)
             break;
 
         case MOTOR_MODE_DUTY_CONTROL: {
-            run_foc_duty_input(dt);
-            break;
-        }
-
-        case MOTOR_MODE_SPEED_CONTROL: {
-            const float tc = 0.005f;
-            const float alpha = dt/(dt+tc);
-            omega_err_filtered += (omega_ref-elec_omega_est/mot_n_poles - omega_err_filtered) * alpha;
-            omega_integrator += omega_err_filtered * 20.0f * dt;
-            omega_integrator = constrain_float(omega_integrator,-5.0f,5.0f);
-            iq_pid_param.i_ref = constrain_float(omega_err_filtered*0.2f, -5, 5) + omega_integrator;
+            motor_set_iq_ref((duty_ref*vbatt_m - 6.36619772367581*mech_omega_est/K_v)/R_s);
             run_foc(dt);
             break;
         }
@@ -525,9 +479,7 @@ void motor_set_mode(enum motor_mode_t new_mode)
     id_pid_param.i_ref = 0.0f;
     iq_pid_param.i_ref = 0.0f;
 
-    if (new_mode == MOTOR_MODE_FOC_CURRENT || new_mode == MOTOR_MODE_SPEED_CONTROL || new_mode == MOTOR_MODE_DUTY_CONTROL) {
-        ekf_init(M_PI_F);
-    }
+    ekf_init(elec_theta_m);
 
     motor_mode = new_mode;
 }
@@ -572,11 +524,6 @@ float motor_get_vbatt(void)
     return vbatt_m;
 }
 
-void motor_set_omega_ref(float val)
-{
-    omega_ref = val;
-}
-
 static void process_adc_measurements(struct adc_sample_s* adc_sample)
 {
     // Retrieve battery measurement
@@ -611,19 +558,21 @@ static void update_estimates(float dt)
 {
     const float tc = 0.0f;
     const float alpha = dt/(dt+tc);
-    mech_omega_est += (wrap_pi(mech_theta_m-prev_mech_theta_m)/dt - mech_omega_est) * alpha;
+    encoder_omega_est += (wrap_pi(mech_theta_m-prev_mech_theta_m)/dt - encoder_omega_est) * alpha;
     prev_mech_theta_m = mech_theta_m;
 
     transform_a_b_c_to_alpha_beta(ia_m, ib_m, ic_m, &i_alpha_m, &i_beta_m);
 
     if (ekf_running) {
         float* state = ekf_state[ekf_idx];
-        elec_omega_est = state[0] * mot_n_poles;
+        mech_omega_est = state[0];
         elec_theta_est = state[1] + elec_omega_est*dt;
     } else {
+        mech_omega_est = encoder_omega_est;
         elec_theta_est = elec_theta_m;
-        elec_omega_est = mech_omega_est * mot_n_poles;
     }
+    elec_omega_est = mech_omega_est * mot_n_poles;
+
 
     transform_alpha_beta_to_d_q(elec_theta_est, i_alpha_m, i_beta_m, &id_meas, &iq_meas);
 }
