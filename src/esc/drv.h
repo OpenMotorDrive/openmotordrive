@@ -29,3 +29,4 @@ void drv_csa_cal_mode_on(void);
 void drv_csa_cal_mode_off(void);
 void drv_6_pwm_mode(void);
 void drv_3_pwm_mode(void);
+float drv_get_csa_gain(void);

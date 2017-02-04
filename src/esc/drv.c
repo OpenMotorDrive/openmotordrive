@@ -154,6 +154,11 @@ void drv_init(void)
     drv_write_register_bits(0x9,1,1,0b1); // clear faults
 }
 
+float drv_get_csa_gain()
+{
+    return 10;
+}
+
 uint16_t drv_read_register(uint8_t reg)
 {
     uint8_t i;

@@ -28,8 +28,7 @@ enum motor_mode_t {
 };
 
 void motor_init(void);
-void motor_update_state(float dt, struct adc_sample_s* adc_sample);
-void motor_run_commutation(float dt);
+void motor_update(float dt, struct adc_sample_s* adc_sample);
 void motor_set_mode(enum motor_mode_t mode);
 void motor_set_iq_ref(float id_ref);
 enum motor_mode_t motor_get_mode(void);
