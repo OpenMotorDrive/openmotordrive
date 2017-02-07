@@ -26,6 +26,7 @@
 #include <esc/serial.h>
 #include <esc/semihost_debug.h>
 #include <esc/slip.h>
+#include <esc/param.h>
 
 #include <esc/can.h>
 
@@ -122,23 +123,23 @@ static uint8_t ekf_idx = 0;
 
 static void load_config(void)
 {
-    params.mot_n_poles = 7;
-    params.elec_theta_bias = 0.0f;
-    params.vsense_div = 20.0f;
-    params.csa_R = 0.001f;
-    params.calibration_voltage = 2.0f;
-    params.foc_bandwidth_hz = 200.0f;
-    params.start_current = 3.0f;
-    params.commutation_method = COMMUTATION_METHOD_SENSORLESS_EKF;
-    params.reverse = false;
-    params.R_s = 0.102f;
-    params.L_d = 28e-6f;
-    params.L_q = 44e-6f;
-    params.K_v = 360.0f;
-    params.J = 0.00004f;
-    params.ekf_i_noise = 0.01f;
-    params.ekf_u_noise = 0.6f;
-    params.ekf_T_l_pnoise = 0.02f;
+    params.mot_n_poles = *param_retrieve_by_name("ESC_MOT_POLES");
+    params.elec_theta_bias = *param_retrieve_by_name("ESC_ENC_EBIAS");
+    params.vsense_div = *param_retrieve_by_name("ESC_HW_VSENSE_DIV");
+    params.csa_R = *param_retrieve_by_name("ESC_HW_CSA_R");
+    params.calibration_voltage = *param_retrieve_by_name("ESC_MOT_CAL_V");
+    params.foc_bandwidth_hz = *param_retrieve_by_name("ESC_FOC_BANDWIDTH");
+    params.start_current = *param_retrieve_by_name("ESC_FOC_START_CURR");
+    params.commutation_method = (enum commutaton_method_t)*param_retrieve_by_name("ESC_MOT_COMM_METHOD");
+    params.reverse = (bool)*param_retrieve_by_name("ESC_MOT_REVERSE");
+    params.R_s = *param_retrieve_by_name("ESC_MOT_R");
+    params.L_d = *param_retrieve_by_name("ESC_MOT_L_D");
+    params.L_q = *param_retrieve_by_name("ESC_MOT_L_Q");
+    params.K_v = *param_retrieve_by_name("ESC_MOT_KV");
+    params.J = *param_retrieve_by_name("ESC_MOT_J");
+    params.ekf_i_noise = *param_retrieve_by_name("ESC_EKF_CURR_M_NSE");
+    params.ekf_u_noise = *param_retrieve_by_name("ESC_EKF_VOLT_NSE");
+    params.ekf_T_l_pnoise = *param_retrieve_by_name("ESC_EKF_LOAD_T_PNSE");
 
     float foc_bandwidth_rads = 2.0f*M_PI_F*params.foc_bandwidth_hz;
 
@@ -253,7 +254,7 @@ void motor_set_duty_ref(float val)
 
 void motor_set_iq_ref(float iq_ref)
 {
-    iq_pid_param.i_ref = constrain_float(iq_ref,-50.0f,50.0f);
+    iq_pid_param.i_ref = constrain_float(iq_ref,-45.0f,45.0f);
 }
 
 float motor_get_iq_meas(void)

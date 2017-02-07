@@ -58,7 +58,7 @@ void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample) {
 
     motor_update(dt, adc_sample);
 
-    if (started && motor_get_mode() != MOTOR_MODE_DISABLED) {
-        motor_print_data(dt);
-    }
+//     if (started && motor_get_mode() != MOTOR_MODE_DISABLED) {
+//         motor_print_data(dt);
+//     }
 }

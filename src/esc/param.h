@@ -21,12 +21,18 @@
 
 #define PARAM_MAX_NAME_LEN 92
 
+enum param_type_t {
+    PARAM_TYPE_FLOAT,
+    PARAM_TYPE_INT,
+    PARAM_TYPE_BOOL
+};
+
 struct param_info_s {
     const char* name;
     float default_val;
     float min_val;
     float max_val;
-    bool int_val;
+    enum param_type_t type;
 };
 
 void param_init(void);

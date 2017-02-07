@@ -366,7 +366,7 @@ static void handle_param_getset_request(CanardInstance* ins, CanardRxTransfer* t
     char param_name[PARAM_MAX_NAME_LEN+1];
     size_t param_name_len;
     uint8_t resp_buf[UAVCAN_PARAM_GETSET_RESPONSE_MAX_SIZE];
-    size_t resp_len;
+    size_t resp_len = 0;
     memset(param_name, 0, sizeof(param_name));
 
     canardDecodeScalar(transfer, 0, 13, false, &param_idx);
@@ -426,36 +426,55 @@ static void handle_param_getset_request(CanardInstance* ins, CanardRxTransfer* t
 
         size_t resp_name_len = strlen(param_info->name);
 
-        if (!param_info->int_val) {
-            // respond with the param name and value
-            resp_buf[0] = 2; // param type
-            memcpy(&resp_buf[1], param_val, sizeof(float)); // param value
-            resp_buf[5] = 2; // param default value
-            memcpy(&resp_buf[6], &param_info->default_val, sizeof(float));
-            resp_buf[10] = 2; // param max value
-            memcpy(&resp_buf[11], &param_info->max_val, sizeof(float));
-            resp_buf[15] = 2; // param min value
-            memcpy(&resp_buf[16], &param_info->min_val, sizeof(float));
-            memcpy(&resp_buf[20], param_info->name, resp_name_len); // param name
-            resp_len = resp_name_len+20;
-        } else {
-            // respond with the param name and value
-            int64_t temp;
-            resp_buf[0] = 1; // param type
-            temp = (int64_t)*param_val;
-            memcpy(&resp_buf[1], &temp, sizeof(int64_t));
-            resp_buf[9] = 1; // param default value
-            temp = (int64_t)param_info->default_val;
-            memcpy(&resp_buf[10], &temp, sizeof(int64_t));
-            resp_buf[18] = 1; // param max value
-            temp = (int64_t)param_info->max_val;
-            memcpy(&resp_buf[19], &temp, sizeof(int64_t));
-            resp_buf[27] = 1; // param min value
-            temp = (int64_t)param_info->min_val;
-            memcpy(&resp_buf[28], &temp, sizeof(int64_t));
-            memcpy(&resp_buf[36], param_info->name, resp_name_len); // param name
-            resp_len = resp_name_len+36;
-        }
+        switch(param_info->type) {
+            case PARAM_TYPE_FLOAT: {
+                // respond with the param name and value
+                resp_buf[0] = 2; // param type
+                memcpy(&resp_buf[1], param_val, sizeof(float)); // param value
+                resp_buf[5] = 2; // param default value
+                memcpy(&resp_buf[6], &param_info->default_val, sizeof(float));
+                resp_buf[10] = 2; // param max value
+                memcpy(&resp_buf[11], &param_info->max_val, sizeof(float));
+                resp_buf[15] = 2; // param min value
+                memcpy(&resp_buf[16], &param_info->min_val, sizeof(float));
+                memcpy(&resp_buf[20], param_info->name, resp_name_len); // param name
+                resp_len = resp_name_len+20;
+                break;
+            }
+            case PARAM_TYPE_INT: {
+                // respond with the param name and value
+                int64_t temp;
+                resp_buf[0] = 1; // param type
+                temp = (int64_t)*param_val;
+                memcpy(&resp_buf[1], &temp, sizeof(int64_t));
+                resp_buf[9] = 1; // param default value
+                temp = (int64_t)param_info->default_val;
+                memcpy(&resp_buf[10], &temp, sizeof(int64_t));
+                resp_buf[18] = 1; // param max value
+                temp = (int64_t)param_info->max_val;
+                memcpy(&resp_buf[19], &temp, sizeof(int64_t));
+                resp_buf[27] = 1; // param min value
+                temp = (int64_t)param_info->min_val;
+                memcpy(&resp_buf[28], &temp, sizeof(int64_t));
+                memcpy(&resp_buf[36], param_info->name, resp_name_len); // param name
+                resp_len = resp_name_len+36;
+                break;
+            }
+            case PARAM_TYPE_BOOL: {
+                bool temp;
+                resp_buf[0] = 3; // param type
+                temp = (bool)*param_val;
+                memcpy(&resp_buf[1], &temp, sizeof(bool));
+                resp_buf[2] = 3; // param default value
+                temp = (bool)param_info->default_val;
+                memcpy(&resp_buf[3], &temp, sizeof(bool));
+                resp_buf[4] = 0; // param max value
+                resp_buf[5] = 0; // param min value
+                memcpy(&resp_buf[6], param_info->name, resp_name_len); // param name
+                resp_len = resp_name_len+6;
+                break;
+            }
+        };
     }  else {
         // Param does not exist, send an empty response per the spec
         resp_buf[0] = 0; // param type
