@@ -103,7 +103,7 @@ void uavcan_init(void)
 {
     desig_get_unique_id((uint32_t*)&node_unique_id[0]);
     canardInit(&canard, canard_memory_pool, sizeof(canard_memory_pool), onTransferReceived, shouldAcceptTransfer);
-    canardSetLocalNodeID(&canard, *param_retrieve_by_name("uavcan.id-uavcan.equipment.esc-esc_index"));
+    canardSetLocalNodeID(&canard, *param_retrieve_by_name("uavcan.node_id"));
     allocation_init();
 }
 
