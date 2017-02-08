@@ -351,7 +351,12 @@ static void run_encoder_calibration(void)
             theta = M_PI_F;
 
             // correct params.elec_theta_bias to zero atan2f(motor_state.i_q, motor_state.i_d), which represents the electrical angle error
-            params.elec_theta_bias = wrap_pi(params.elec_theta_bias - atan2f(motor_state.i_q, motor_state.i_d));
+            params.elec_theta_bias = wrap_pi(-params.elec_theta_bias - atan2f(motor_state.i_q, motor_state.i_d));
+
+            *param_retrieve_by_name("ESC_ENC_EBIAS") = params.elec_theta_bias;
+            *param_retrieve_by_name("ESC_MOT_REVERSE") = params.reverse;
+            *param_retrieve_by_name("ESC_MOT_POLES") = params.mot_n_poles;
+            param_write();
 
             motor_set_mode(MOTOR_MODE_DISABLED);
             break;
