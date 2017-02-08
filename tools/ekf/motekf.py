@@ -131,15 +131,6 @@ P_n = upperTriangularToVec(P_n)
 
 def print_code():
     global x_n, P_n
-    #subs = [
-        #(sin(theta_e_est), Symbol('ekf_sin_theta')),
-        #(cos(theta_e_est), Symbol('ekf_cos_theta')),
-        #(sin(theta_e_est+dt*omega_e_est), Symbol('next_ekf_sin_theta')),
-        #(cos(theta_e_est+dt*omega_e_est), Symbol('next_ekf_cos_theta'))
-        #]
-    #x_n = x_n.subs(subs)
-    #P_n = P_n.subs(subs)
-
 
     x_n,P_n,subx = extractSubexpressions([x_n,P_n],'subx',threshold=5)
 
@@ -154,6 +145,7 @@ def print_code():
     for i in range(len(init_P)):
         print('cov[%u] = %s;' % (i, CCodePrinter_float().doprint(init_P[i])))
 
+    print 'static float subx[%u];' % (len(subx),)
     for i in range(len(subx)):
         print('%s = %s;' % (subx[i][0], CCodePrinter_float().doprint(subx[i][1])))
 
@@ -186,7 +178,7 @@ def test_ekf():
         L_d:28.0*1e-6,
         L_q:43.0*1e-6,
         K_v:360.,
-        J:0.00005,
+        J:0.00003,
         N_P:7,
         i_noise: 0.0075,
         u_noise: 0.6,
@@ -209,13 +201,13 @@ def test_ekf():
     subx_lambda = []
 
     for sym,expr in subx:
-        subx_lambda.append(lambdify(lambda_args, expr))
+        subx_lambda.append(lambdify(lambda_args, expr, 'numpy'))
 
-    x_n_lambda = lambdify(lambda_args, x_n)
-    P_n_lambda = lambdify(lambda_args, P_n)
-    NIS_lambda = lambdify(lambda_args, NIS)
-    S_lambda = lambdify(lambda_args, S)
-    y_lambda = lambdify(lambda_args, y)
+    x_n_lambda = lambdify(lambda_args, x_n, 'numpy')
+    P_n_lambda = lambdify(lambda_args, P_n, 'numpy')
+    NIS_lambda = lambdify(lambda_args, NIS, 'numpy')
+    S_lambda = lambdify(lambda_args, S, 'numpy')
+    y_lambda = lambdify(lambda_args, y, 'numpy')
 
     init_P = upperTriangularToVec(diag(10.**2, (math.pi)**2, 0.01**2, 0.01**2, 0.1**2))
 
@@ -230,14 +222,6 @@ def test_ekf():
         if name not in plot_data.keys():
             plot_data[name] = []
         plot_data[name].append(val)
-
-    #data['u_alpha'][0] = np.roll(data['u_alpha'][0],1)
-    #data['u_beta'][0] = np.roll(data['u_beta'][0],1)
-    #data['u_alpha'][0][0] = data['u_beta'][0][0] = 0
-    #data['u_alpha'][0][1] = data['u_beta'][0][1] = 0
-
-    #print data['u_alpha'][0][0]
-    #print data['u_beta'][0][0]
 
     n_samples = len(data['dt'][0])
     n_process = n_samples
@@ -282,8 +266,6 @@ def test_ekf():
             i_d_sigma = float(next_P_uncompressed[2,2]**0.5)
             i_q_mu = next_x[3][0]
             i_q_sigma = float(next_P_uncompressed[3,3]**0.5)
-            #J_mu = next_x[5][0]
-            #J_sigma = float(next_P_uncompressed[5,5]**0.5)
 
             u_dq_truth = R_ab_dq(theta_e_truth) * Matrix([u_alpha, u_beta])
             i_dq_truth = (R_ab_dq(theta_e_truth) * Matrix([i_alpha_m, i_beta_m]))
@@ -328,11 +310,6 @@ def test_ekf():
 
             add_plot_data('NIS',obs_NIS)
 
-            #add_plot_data('J_est', J_mu)
-            #add_plot_data('J_est_min', J_mu-J_sigma)
-            #add_plot_data('J_est_max', J_mu+J_sigma)
-
-
             curr_x = next_x
             curr_P = next_P
             if poison:
@@ -347,29 +324,21 @@ def test_ekf():
     plt.subplot(4,2,1)
     plt.title('electrical rotor angle')
     plt.fill_between(plot_data['t'], plot_data['theta_e_est_min'], plot_data['theta_e_est_max'], facecolor='b', alpha=0.25)
-    #plt.plot(plot_data['t'], plot_data['theta_e_truth_min'], color='g', linestyle=':')
-    #plt.plot(plot_data['t'], plot_data['theta_e_truth_max'], color='g', linestyle=':')
     plt.plot(plot_data['t'], plot_data['theta_e_est'], color='b')
     plt.plot(plot_data['t'], plot_data['theta_e_truth'], color='g')
     plt.subplot(4,2,2)
     plt.title('electrical rotor angular velocity')
     plt.fill_between(plot_data['t'], plot_data['omega_e_est_min'], plot_data['omega_e_est_max'], facecolor='b', alpha=0.25)
-    #plt.plot(plot_data['t'], plot_data['omega_e_truth_min'], color='g', linestyle=':')
-    #plt.plot(plot_data['t'], plot_data['omega_e_truth_max'], color='g', linestyle=':')
     plt.plot(plot_data['t'], plot_data['omega_e_est'], color='b')
     plt.plot(plot_data['t'], plot_data['omega_e_truth'], color='g')
     plt.subplot(4,2,3)
     plt.title('d-axis current')
     plt.fill_between(plot_data['t'], plot_data['i_d_est_min'], plot_data['i_d_est_max'], facecolor='b', alpha=0.25)
-    #plt.plot(plot_data['t'], plot_data['i_d_truth_min'], color='g', linestyle=':')
-    #plt.plot(plot_data['t'], plot_data['i_d_truth_max'], color='g', linestyle=':')
     plt.plot(plot_data['t'], plot_data['i_d_est'], color='b')
     plt.plot(plot_data['t'], plot_data['i_d_truth'], color='g')
     plt.subplot(4,2,4)
     plt.title('q-axis current')
     plt.fill_between(plot_data['t'], plot_data['i_q_est_min'], plot_data['i_q_est_max'], facecolor='b', alpha=0.25)
-    #plt.plot(plot_data['t'], plot_data['i_q_truth_min'], color='g', linestyle=':')
-    #plt.plot(plot_data['t'], plot_data['i_q_truth_max'], color='g', linestyle=':')
     plt.plot(plot_data['t'], plot_data['i_q_est'], color='b')
     plt.plot(plot_data['t'], plot_data['i_q_truth'], color='g')
     plt.subplot(4,2,5)
@@ -385,10 +354,6 @@ def test_ekf():
     plt.subplot(4,2,8)
     plt.title('electrical rotor angular velocity error vs sensor')
     plt.plot(plot_data['t'], plot_data['omega_e_err'])
-
-    #plt.figure(2)
-    #plt.fill_between(plot_data['t'], plot_data['J_est_min'], plot_data['J_est_max'], facecolor='b', alpha=0.25)
-    #plt.plot(plot_data['t'], plot_data['J_est'], color='b')
 
 
     plt.show()
