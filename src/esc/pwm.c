@@ -61,14 +61,18 @@ void pwm_init(void)
 void tim1_cc_isr(void) {
     if (TIM1_SR & (1<<4)) {
         TIM1_SR &= ~(1<<4); // CC4IF
-        if (phase_duty_callback) {
-            float phaseA, phaseB, phaseC;
-            phase_duty_callback(&phaseA, &phaseB, &phaseC);
+        pwm_update();
+    }
+}
 
-            TIM1_CCR1 = TIM1_ARR-roundf(TIM1_ARR*phaseA);
-            TIM1_CCR2 = TIM1_ARR-roundf(TIM1_ARR*phaseB);
-            TIM1_CCR3 = TIM1_ARR-roundf(TIM1_ARR*phaseC);
-        }
+void pwm_update(void) {
+    if (phase_duty_callback) {
+        float phaseA, phaseB, phaseC;
+        phase_duty_callback(&phaseA, &phaseB, &phaseC);
+
+        TIM1_CCR1 = TIM1_ARR-roundf(TIM1_ARR*phaseA);
+        TIM1_CCR2 = TIM1_ARR-roundf(TIM1_ARR*phaseB);
+        TIM1_CCR3 = TIM1_ARR-roundf(TIM1_ARR*phaseC);
     }
 }
 

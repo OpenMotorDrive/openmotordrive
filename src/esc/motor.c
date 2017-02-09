@@ -487,6 +487,7 @@ static void set_alpha_beta_output_duty(float duty_alpha, float duty_beta, float 
     phase_output[next_phase_output_idx].duty_alpha = duty_alpha;
     phase_output[next_phase_output_idx].duty_beta = duty_beta;
     phase_output_idx = next_phase_output_idx;
+    pwm_update();
 }
 
 static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC)
