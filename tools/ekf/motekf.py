@@ -93,7 +93,7 @@ Q_u = diag(*w_u_sigma.multiply_elementwise(w_u_sigma))
 
 # Q: covariance of additive noise on x
 Q = G*Q_u*G.T
-Q += diag(0**2, 0**2, 0**2, 0**2, T_l_pnoise**2)
+Q += diag(omega_pnoise**2, theta_pnoise**2, 0**2, 0**2, T_l_pnoise**2)
 
 x_p = f
 
