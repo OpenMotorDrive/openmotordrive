@@ -31,7 +31,7 @@ static float t_max = 10.0f;
 
 void program_init(void) {
     // Calibrate the encoder
-    motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
+//     motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
     tbegin_us = micros();
 }
 
@@ -45,7 +45,7 @@ void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample) {
     } else if (waiting_to_start && !started && t > 0.1f) {
         tbegin_us = micros();
         started = true;
-        motor_set_mode(MOTOR_MODE_DISABLED);
+        motor_set_mode(MOTOR_MODE_FOC_DUTY);
     } else if (started && t > t_max && motor_get_mode() != MOTOR_MODE_DISABLED) {
         motor_set_mode(MOTOR_MODE_DISABLED);
     }
@@ -53,9 +53,9 @@ void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample) {
     if (t < 2) {
         motor_set_duty_ref(MIN(t*0.04f, 0.04f));
     } else if (t < 6) {
-        motor_set_duty_ref((((uint32_t)(t*2))%2)==0 ? 0.04f : 1.0f);
+        motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? 0.04f : 1.0f);
     } else {
-        motor_set_duty_ref((((uint32_t)(t*2))%2)==0 ? -0.2f : 0.2f);
+        motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? -0.2f : 0.2f);
     }
 
     motor_update(dt, adc_sample);

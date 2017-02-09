@@ -28,7 +28,7 @@
 #include <esc/slip.h>
 #include <esc/param.h>
 
-#include <esc/can.h>
+#include <esc/uavcan.h>
 
 enum commutaton_method_t {
     COMMUTATION_METHOD_SENSORLESS_EKF=0,
@@ -223,6 +223,8 @@ void motor_set_mode(enum motor_mode_t new_mode)
         return;
     }
 
+    load_config();
+
     set_alpha_beta_output_duty(0, 0, 0);
 
     if (new_mode == MOTOR_MODE_DISABLED) {
@@ -232,6 +234,7 @@ void motor_set_mode(enum motor_mode_t new_mode)
     }
 
     if (new_mode == MOTOR_MODE_ENCODER_CALIBRATION) {
+        params.commutation_method = COMMUTATION_METHOD_ENCODER;
         encoder_cal_state.start_time_us = micros();
         encoder_cal_state.step = 0;
     }
@@ -351,14 +354,20 @@ static void run_encoder_calibration(void)
             theta = M_PI_F;
 
             // correct params.elec_theta_bias to zero atan2f(motor_state.i_q, motor_state.i_d), which represents the electrical angle error
-            params.elec_theta_bias = wrap_pi(-params.elec_theta_bias - atan2f(motor_state.i_q, motor_state.i_d));
+            params.elec_theta_bias = wrap_pi(params.elec_theta_bias - atan2f(motor_state.i_q, motor_state.i_d));
 
             *param_retrieve_by_name("ESC_ENC_EBIAS") = params.elec_theta_bias;
             *param_retrieve_by_name("ESC_MOT_REVERSE") = params.reverse;
             *param_retrieve_by_name("ESC_MOT_POLES") = params.mot_n_poles;
             param_write();
-
-            motor_set_mode(MOTOR_MODE_DISABLED);
+//             motor_set_mode(MOTOR_MODE_DISABLED);
+            encoder_cal_state.step = 3;
+            break;
+        case 3:
+            theta = constrain_float(M_PI_F + M_PI_F * (t-2.5f)/1.0f, M_PI_F, M_PI_F*2*params.mot_n_poles);
+            if (theta == M_PI_F*2*params.mot_n_poles) {
+                motor_set_mode(MOTOR_MODE_DISABLED);
+            }
             break;
     }
 
@@ -413,6 +422,7 @@ static void process_adc_measurements(struct adc_sample_s* adc_sample)
 static void retrieve_encoder_measurement(void)
 {
     encoder_state.mech_theta = wrap_2pi(encoder_get_angle_rad());
+    encoder_state.mech_theta -= (cosf_fast(encoder_state.mech_theta*2)*.2*0.5)/7;
     encoder_state.elec_theta = wrap_2pi(encoder_state.mech_theta*params.mot_n_poles-params.elec_theta_bias);
 }
 
@@ -711,8 +721,8 @@ void motor_print_data(float dt) {
         slip_encode_and_append(((uint8_t*)&prev_u_beta)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));
     }
 
-    for (i=0; i<sizeof(uint32_t); i++) {
-        slip_encode_and_append(((uint8_t*)&adc_errcnt)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));
+    for (i=0; i<sizeof(float); i++) {
+        slip_encode_and_append(((uint8_t*)&encoder_state.mech_theta)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));
     }
 
     slip_msg[slip_msg_len++] = SLIP_END;

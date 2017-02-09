@@ -22,12 +22,13 @@ L_q = Symbol('L_q')   # L_q
 K_v = Symbol('K_v') # Motor back-emf constant, RPM/V
 N_P = Symbol('N_P') # Number of magnetic pole pairs
 J   = Symbol('J')   # Rotor inertia
+J_sigma = 0
 T_l_pnoise = Symbol('T_l_pnoise') # Load torque process noise
 i_pnoise = Symbol('i_pnoise') # Current process noise
 omega_pnoise = Symbol('omega_pnoise')
 theta_pnoise = Symbol('theta_pnoise')
 K_t = 30./(K_v*pi) # Motor torque constant.
-lambda_r = 2./3. * K_t/N_P # Rotor flux linkage - Ohm, section III, eqn 3.7
+lambda_r =  2./3. * K_t/N_P # Rotor flux linkage - Ohm, section III, eqn 3.7
 
 # Inputs
 u_ab = Matrix(symbols('u_alpha u_beta')) # Stator voltages
@@ -79,13 +80,13 @@ assert f.shape == x.shape
 F = f.jacobian(x)
 
 # u: control input vector
-u = toVec(u_ab)
+u = toVec(u_ab, J)
 
 # G: control-influence matrix, AKA "B" in literature
 G = f.jacobian(u)
 
 # w_u_sigma: additive noise on u
-w_u_sigma = Matrix([u_noise, u_noise])
+w_u_sigma = Matrix([u_noise, u_noise, J_sigma])
 
 # Q_u: covariance of additive noise on u
 Q_u = diag(*w_u_sigma.multiply_elementwise(w_u_sigma))
@@ -130,13 +131,13 @@ P_p = upperTriangularToVec(P_p)
 P_n = upperTriangularToVec(P_n)
 
 def print_code():
-    global x_n, P_n
+    global x_n, P_n, y, NIS
 
-    x_n,P_n,subx = extractSubexpressions([x_n,P_n],'subx',threshold=5)
+    x_n,P_n,y,NIS,subx = extractSubexpressions([x_n,P_n,y,NIS],'subx',threshold=5)
 
     print count_ops(x_n)+count_ops(P_n)+count_ops(subx)
 
-    init_P = upperTriangularToVec(diag(100., math.pi**2, i_noise**2, i_noise**2, 0.1**2))
+    init_P = upperTriangularToVec(diag(0., math.pi**2, 0., 0., 0.**2))
 
     soln = solve([i_d_dot-Symbol('i_d_dot'), i_q_dot-Symbol('i_q_dot')], [u_d,u_q])
     print(CCodePrinter_float().doprint(soln[u_d]))
@@ -154,6 +155,12 @@ def print_code():
 
     for i in range(len(P_n)):
         print('cov_n[%u] = %s;' % (i, CCodePrinter_float().doprint(P_n[i])))
+
+    for i in range(len(y)):
+        print('innov[%u] = %s;' % (i, CCodePrinter_float().doprint(y[i])))
+
+    print('*NIS = %s;' % (CCodePrinter_float().doprint(NIS[0]),))
+
 
 def test_ekf():
     global x_n, P_n, dt, NIS, S, y
