@@ -141,3 +141,28 @@ def wrap_pi(x):
         x += 2*math.pi
 
     return x
+
+def UDUdecomposition(M):
+    assert M.rows == M.cols
+    assert M.is_symmetric()
+
+    P = M[:,:]
+
+    n = P.rows
+
+    U = zeros(*P.shape)
+    D = zeros(*P.shape)
+
+    for j in range(n-1, 0, -1):
+        D[j,j] = P[j,j]
+        alpha = 1/D[j,j]
+        for k in range(j):
+            beta = P[k,j]
+            U[k,j] = alpha*beta
+            for i in range(k+1):
+                P[i,k] = P[i,k]-beta*U[i,j]
+    D[0,0] = P[0,0]
+    for i in range(n):
+        U[i,i] = 1
+
+    return U,D

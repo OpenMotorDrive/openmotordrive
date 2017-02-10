@@ -50,8 +50,9 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
         return;
     }
     struct packet_s* pkt = (struct packet_s*)buf;
+    pkt->encoder_theta_e = wrap_2pi(pkt->encoder_theta_e+0.23);
     if (!ekf_initialized) {
-        ekf_init(pkt->encoder_theta_e+.12);
+        ekf_init(pkt->encoder_theta_e);
         ekf_initialized = true;
     } else {
         ekf_update(pkt->dt, pkt->u_alpha, pkt->u_beta, pkt->i_alpha_m, pkt->i_beta_m);

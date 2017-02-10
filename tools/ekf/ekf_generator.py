@@ -23,7 +23,6 @@ L_q = Symbol('L_q')   # L_q
 K_v = Symbol('K_v') # Motor back-emf constant, RPM/V
 N_P = Symbol('N_P') # Number of magnetic pole pairs
 J   = Symbol('J')   # Rotor inertia
-J_sigma = 0
 T_l_pnoise = Symbol('T_l_pnoise') # Load torque process noise
 i_pnoise = Symbol('i_pnoise') # Current process noise
 omega_pnoise = Symbol('omega_pnoise')
@@ -38,10 +37,6 @@ u_noise = Symbol('u_noise') # Additive noise on stator voltage
 # Measurements
 i_ab_m = Matrix(symbols('i_alpha_m i_beta_m')) # Stator currents observed
 i_noise = Symbol('i_noise') # Additive noise on stator currents
-#theta_e_m = Symbol('theta_e_m')
-#theta_e_m_noise = Symbol('theta_e_m_noise')
-z = toVec(i_ab_m) # Observation vector
-R = diag(i_noise**2,i_noise**2) # Covariance of observation vector
 
 # States
 omega_r_est, theta_e_est, i_d_est, i_q_est, T_l_est = symbols('state[0:5]')
@@ -81,13 +76,13 @@ assert f.shape == x.shape
 F = f.jacobian(x)
 
 # u: control input vector
-u = toVec(u_ab, J)
+u = toVec(u_ab)
 
 # G: control-influence matrix, AKA "B" in literature
 G = f.jacobian(u)
 
 # w_u_sigma: additive noise on u
-w_u_sigma = Matrix([u_noise, u_noise, J_sigma])
+w_u_sigma = Matrix([u_noise, u_noise])
 
 # Q_u: covariance of additive noise on u
 Q_u = diag(*w_u_sigma.multiply_elementwise(w_u_sigma))
@@ -105,7 +100,12 @@ assert P_p.shape == P.shape
 # h: predicted measurement
 h = zeros(2,1)
 h[0:2,0] = R_dq_ab(theta_e_est) * Matrix([i_d_est, i_q_est])
-#h[2,0] = theta_e_est
+
+# z: observation
+z = toVec(i_ab_m)
+
+# R: observation covariance
+R = diag(i_noise**2,i_noise**2) # Covariance of observation vector
 
 # y: innovation vector
 y = z-h
@@ -127,13 +127,11 @@ NIS = (y.T*S_I*y).xreplace(dict(zip(x,x_p)+zip(P,P_p))) # normalized innovation 
 
 x_n = (x + K*y).xreplace(dict(zip(x,x_p)+zip(P,P_p)))
 P_n = ((I-K*H)*P).xreplace(dict(zip(x,x_p)+zip(P,P_p)))
-
-P_p = upperTriangularToVec(P_p)
 P_n = upperTriangularToVec(P_n)
 
 # Generate code
-
 x_n,P_n,y,NIS,subx = extractSubexpressions([x_n,P_n,y,NIS],'subx',threshold=5)
+
 init_P = upperTriangularToVec(diag(0., math.pi**2, 0., 0., 0.**2))
 
 sys.stdout.write(
