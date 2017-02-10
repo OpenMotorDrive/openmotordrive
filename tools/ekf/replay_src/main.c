@@ -23,6 +23,57 @@ static float u_noise = .9;
 static float T_l_pnoise = 0.01;
 static float omega_pnoise = 1.0/3600.0 * 0.0f;
 static float theta_pnoise = 0;
+static float encoder_theta_e_bias = -.23;
+
+static const struct {
+    const char* name;
+    float* ptr;
+} param_info[] = {
+    {"R_s", &R_s},
+    {"L_d", &L_d},
+    {"L_q", &L_q},
+    {"K_v", &K_v},
+    {"J", &J},
+    {"N_P", &N_P},
+    {"i_noise", &i_noise},
+    {"u_noise", &u_noise},
+    {"T_l_pnoise", &T_l_pnoise},
+    {"omega_pnoise", &omega_pnoise},
+    {"theta_pnoise", &theta_pnoise},
+    {"encoder_theta_e_bias", &encoder_theta_e_bias},
+};
+
+#define N_PARAMS (sizeof(param_info)/sizeof(param_info[0]))
+
+static bool read_config_file(FILE* config_file) {
+    char line[255];
+    uint8_t count = 0;
+    while (fgets(line, 255, config_file)) {
+        char name[255];
+        float val;
+        if (sscanf(line, "%s %f\n", name, &val) != 2) {
+            return false;
+        }
+        uint32_t i;
+        bool found = false;
+        for (i=0; i<N_PARAMS; i++) {
+            if (strcmp(param_info[i].name, name) == 0) {
+                *param_info[i].ptr = val;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            return false;
+        }
+        count++;
+    }
+    if (count == N_PARAMS) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
 #include "ekf.h"
 
@@ -50,7 +101,7 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
         return;
     }
     struct packet_s* pkt = (struct packet_s*)buf;
-    pkt->encoder_theta_e = wrap_2pi(pkt->encoder_theta_e+0.23);
+    pkt->encoder_theta_e = wrap_2pi(pkt->encoder_theta_e-encoder_theta_e_bias);
     if (!ekf_initialized) {
         ekf_init(pkt->encoder_theta_e);
         ekf_initialized = true;
@@ -79,21 +130,32 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        printf("%s <IN_FILE> <OUT_FILE>\n", argv[0]);
+    if (argc != 4) {
+        printf("%s <CONFIG_FILE> <IN_FILE> <OUT_FILE>\n", argv[0]);
         return 1;
     }
 
-    FILE* in_file = fopen(argv[1], "r");
-    FILE* out_file = fopen(argv[2], "w+");
+    FILE* config_file = fopen(argv[1], "r");
+    FILE* in_file = fopen(argv[2], "r");
+    FILE* out_file = fopen(argv[3], "w+");
 
-    if (in_file == NULL) {
+    if (config_file == NULL) {
         printf("could not open file %s\n", argv[1]);
         return 1;
     }
 
-    if (out_file == NULL) {
+    if (in_file == NULL) {
         printf("could not open file %s\n", argv[2]);
+        return 1;
+    }
+
+    if (out_file == NULL) {
+        printf("could not open file %s\n", argv[3]);
+        return 1;
+    }
+
+    if (!read_config_file(config_file)) {
+        printf("could not read config file\n");
         return 1;
     }
 
@@ -139,6 +201,7 @@ int main(int argc, char **argv) {
     printf("NIS_sum/dt_sum %9g\n", NIS_sum/dt_sum);
     printf("curr_innov_sq_sum/dt_sum %9g\n", curr_innov_sq_sum/dt_sum);
 
+    fclose(config_file);
     fclose(in_file);
     fclose(out_file);
 
