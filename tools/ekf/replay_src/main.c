@@ -48,6 +48,7 @@ static const struct {
 static bool read_config_file(FILE* config_file) {
     char line[255];
     uint8_t count = 0;
+    bool set[N_PARAMS] = {};
     while (fgets(line, 255, config_file)) {
         char name[255];
         float val;
@@ -58,12 +59,18 @@ static bool read_config_file(FILE* config_file) {
         bool found = false;
         for (i=0; i<N_PARAMS; i++) {
             if (strcmp(param_info[i].name, name) == 0) {
+                if (set[i]) {
+                    printf("duplicate param %s\n", name);
+                    return false;
+                }
                 *param_info[i].ptr = val;
+                set[i] = true;
                 found = true;
                 break;
             }
         }
         if (!found) {
+            printf("no param %s\n", name);
             return false;
         }
         count++;
@@ -71,6 +78,12 @@ static bool read_config_file(FILE* config_file) {
     if (count == N_PARAMS) {
         return true;
     } else {
+        uint8_t i;
+        for (i=0; i<N_PARAMS; i++) {
+            if (!set[i]) {
+                printf("missing param %s\n", param_info[i].name);
+            }
+        }
         return false;
     }
 }

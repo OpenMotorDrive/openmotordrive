@@ -8,5 +8,5 @@ fi
 
 gcc replay_src/main.c -lm -o replay
 
-./replay config $1 plot_data.json
+./replay replay_config.parm $1 plot_data.json
 ./plotter.py plot_data.json
