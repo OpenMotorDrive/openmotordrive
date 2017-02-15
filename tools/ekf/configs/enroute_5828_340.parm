@@ -1,0 +1,12 @@
+u_noise       .6
+L_q 30e-6
+R_s     0.05
+T_l_pnoise      0.001
+J   0.0001
+N_P         7
+i_noise      0.01
+K_v       340
+L_d 30e-6
+theta_pnoise         0
+omega_pnoise         0
+encoder_theta_e_bias     0

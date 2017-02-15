@@ -8,4 +8,4 @@ with open(sys.argv[1], 'rb') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         reader.next()
         for row in reader:
-            outfile.write(row[2][2:].decode('hex'))
+            outfile.write(row[1][2:].decode('hex'))

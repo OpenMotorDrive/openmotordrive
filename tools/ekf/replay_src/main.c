@@ -12,18 +12,18 @@ static void ekf_init(float init_theta);
 static void ekf_update(float dt, float u_alpha, float u_beta, float i_alpha_m, float i_beta_m);
 static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, float* d, float* q);
 
-static float R_s = .102;
-static float L_d = 28e-6;
-static float L_q = 44e-6;
-static float K_v = 360;
-static float J = 0.000031;
-static float N_P = 7;
-static float i_noise = 0.01;
-static float u_noise = .9;
-static float T_l_pnoise = 0.01;
-static float omega_pnoise = 1.0/3600.0 * 0.0f;
-static float theta_pnoise = 0;
-static float encoder_theta_e_bias = -.23;
+static float R_s;
+static float L_d;
+static float L_q;
+static float K_v;
+static float J;
+static float N_P;
+static float i_noise;
+static float u_noise;
+static float T_l_pnoise;
+static float omega_pnoise;
+static float theta_pnoise;
+static float encoder_theta_e_bias;
 
 static const struct {
     const char* name;
@@ -102,11 +102,11 @@ struct packet_s {
     float encoder_theta_m;
 };
 
-static double theta_e_err_abs_sum = 0;
-static double theta_e_err_sq_sum = 0;
-static double curr_innov_sq_sum = 0;
-static double NIS_sum = 0;
-static double dt_sum = 0;
+static long double theta_e_err_abs_sum = 0;
+static long double theta_e_err_sq_sum = 0;
+static long double curr_innov_sq_sum = 0;
+static long double NIS_sum = 0;
+static long double dt_sum = 0;
 
 static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     static bool ekf_initialized = false;
@@ -204,15 +204,23 @@ int main(int argc, char **argv) {
             pkt_len = 0;
         }
     }
+
+    double ISE = theta_e_err_sq_sum/dt_sum;
+
+    if (isnan(ISE)) {
+        ISE = DBL_MAX;
+    }
+
     fprintf(out_file, "],\n");
-    fprintf(out_file, "\"theta_IAE\": %9g,\n", theta_e_err_abs_sum/dt_sum);
-    fprintf(out_file, "\"theta_ISE\": %9g\n", theta_e_err_sq_sum/dt_sum);
+    fprintf(out_file, "\"theta_IAE\": %9g,\n", (double)(theta_e_err_abs_sum/dt_sum));
+    fprintf(out_file, "\"theta_ISE\": %9g\n", ISE);
     fprintf(out_file, "}\n");
 
-    printf("ISE %9g\n", theta_e_err_sq_sum/dt_sum);
+    printf("dt_sum %9g\n", (double)dt_sum);
+    printf("ISE %9g\n", ISE);
 //     printf("IAE %9g\n", theta_e_err_abs_sum/dt_sum);
-    printf("NIS_sum/dt_sum %9g\n", NIS_sum/dt_sum);
-    printf("curr_innov_sq_sum/dt_sum %9g\n", curr_innov_sq_sum/dt_sum);
+//     printf("NIS_sum/dt_sum %9g\n", NIS_sum/dt_sum);
+//     printf("curr_innov_sq_sum/dt_sum %9g\n", curr_innov_sq_sum/dt_sum);
 
     fclose(config_file);
     fclose(in_file);
