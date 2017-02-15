@@ -64,7 +64,7 @@ int main(void)
 
     program_init();
 
-//     uint32_t last_print_ms = 0;
+    uint32_t last_print_ms = 0;
 
     // main loop
     while(1) {
@@ -82,11 +82,11 @@ int main(void)
         program_event_adc_sample(dt, &adc_sample);
         uavcan_update();
 
-//         uint32_t tnow_ms = millis();
-//         if (tnow_ms-last_print_ms >= 2000) {
-//             drv_print_faults();
-//             last_print_ms = tnow_ms;
-//         }
+        uint32_t tnow_ms = millis();
+        if (tnow_ms-last_print_ms >= 2000) {
+                drv_print_faults();
+            last_print_ms = tnow_ms;
+        }
 
         if (restart_req && (micros() - restart_req_us) > 1000) {
             // reset

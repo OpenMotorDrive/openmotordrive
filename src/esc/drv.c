@@ -15,7 +15,7 @@
 
 #include <esc/drv.h>
 #include <esc/timing.h>
-#include <esc/semihost_debug.h>
+#include <esc/uavcan.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
@@ -221,58 +221,42 @@ void drv_write_register_bits(uint8_t reg, uint8_t rng_begin, uint8_t rng_end, ui
 void drv_print_faults(void) {
     uint8_t i;
     uint16_t reg_val;
-    bool printed = false;
-
-    if (!semihost_debug_enabled()) {
-        return;
-    }
-
-//     if (drv_get_fault()) {
-//         semihost_debug_printf("DRV: FPIN\n");
-//         printed = true;
-//     }
 
     reg_val = drv_read_register(0x1);
     for(i=0; i<=10; i++) {
         if ((reg_val&(1<<i)) != 0) {
-            semihost_debug_printf("DRV: %s\n", drv_reg0x1_names[i]);
-            printed = true;
+            uavcan_send_debug_key_value(drv_reg0x1_names[i], 1);
         }
     }
 
     reg_val = drv_read_register(0x2);
     for(i=0; i<=10; i++) {
         if ((reg_val&(1<<i)) != 0) {
-            semihost_debug_printf("DRV: %s\n", drv_reg0x2_names[i]);
-            printed = true;
+            uavcan_send_debug_key_value(drv_reg0x2_names[i], 1);
         }
     }
 
     reg_val = drv_read_register(0x3);
     for(i=0; i<=10; i++) {
         if ((reg_val&(1<<i)) != 0) {
-            semihost_debug_printf("DRV: %s\n", drv_reg0x3_names[i]);
-            printed = true;
+            uavcan_send_debug_key_value(drv_reg0x3_names[i], 1);
         }
     }
 
     reg_val = drv_read_register(0x4);
     for(i=0; i<=10; i++) {
         if ((reg_val&(1<<i)) != 0) {
-            semihost_debug_printf("DRV: %s\n", drv_reg0x4_names[i]);
-            printed = true;
+            uavcan_send_debug_key_value(drv_reg0x4_names[i], 1);
         }
-    }
-
-    if (printed) {
-        semihost_debug_printf("\n");
     }
 }
 
 void drv_print_register(uint8_t reg)
 {
     uint16_t val = drv_read_register(reg);
-    semihost_debug_printf("0x%02X 0x%04X\n", reg, val);
+    char msg[32];
+    snprintf(msg, 32, "0x%02X 0x%04X\n", reg, val);
+    uavcan_send_debug_key_value(msg, 0);
 }
 
 bool drv_get_fault(void)
