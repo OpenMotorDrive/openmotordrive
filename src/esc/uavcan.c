@@ -54,6 +54,10 @@
 #define UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_ID                          16370
 #define UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_SIGNATURE                   0xe02f25d6e0c98ae0
 
+#define UAVCAN_ESC_RAWCOMMAND_MESSAGE_MAX_SIZE                      BIT_LEN_TO_SIZE(285)
+#define UAVCAN_ESC_RAWCOMMAND_DATA_TYPE_ID                          1030
+#define UAVCAN_ESC_RAWCOMMAND_DATA_TYPE_SIGNATURE                   0x217f5c87d7ec951d
+
 #define UAVCAN_PARAM_VALUE_FLOAT_SIZE                               5
 
 #define UAVCAN_NODE_HEALTH_OK                                       0
@@ -67,6 +71,7 @@
 #define UNIQUE_ID_LENGTH_BYTES                                      16
 
 static restart_handler_ptr restart_cb;
+static esc_rawcommand_handler_ptr esc_rawcommand_cb;
 
 static CanardInstance canard;
 static uint8_t canard_memory_pool[1024];
@@ -147,6 +152,11 @@ void uavcan_update(void)
             break;
         }
     }
+}
+
+void uavcan_set_esc_rawcommand_cb(esc_rawcommand_handler_ptr cb)
+{
+    esc_rawcommand_cb = cb;
 }
 
 void uavcan_set_restart_cb(restart_handler_ptr cb)
@@ -487,6 +497,22 @@ static void handle_param_getset_request(CanardInstance* ins, CanardRxTransfer* t
     canardRequestOrRespond(ins, transfer->source_node_id, UAVCAN_PARAM_GETSET_DATA_TYPE_SIGNATURE, UAVCAN_PARAM_GETSET_DATA_TYPE_ID, &transfer->transfer_id, transfer->priority, CanardResponse, resp_buf, resp_len);
 }
 
+static void handle_esc_rawcommand_message(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    UNUSED(ins);
+    int16_t commands[20];
+    memset(commands, 0, sizeof(commands));
+    uint8_t len = (transfer->payload_len*8)/14;
+    uint8_t i;
+    for (i=0; i<len; i++) {
+        canardDecodeScalar(transfer, i*14, 14, true, &commands[i]);
+    }
+    if (esc_rawcommand_cb) {
+        esc_rawcommand_cb(len, commands);
+    }
+
+}
+
 static void onTransferReceived(CanardInstance* ins, CanardRxTransfer* transfer)
 {
     if (transfer->transfer_type == CanardTransferTypeBroadcast && transfer->data_type_id == UAVCAN_NODE_ID_ALLOCATION_DATA_TYPE_ID) {
@@ -499,6 +525,8 @@ static void onTransferReceived(CanardInstance* ins, CanardRxTransfer* transfer)
         handle_param_opcode_request(ins, transfer);
     } else if (transfer->transfer_type == CanardTransferTypeRequest && transfer->data_type_id == UAVCAN_RESTARTNODE_DATA_TYPE_ID) {
         handle_restart_node_request(ins, transfer);
+    } else if (transfer->transfer_type == CanardTransferTypeBroadcast && transfer->data_type_id == UAVCAN_ESC_RAWCOMMAND_DATA_TYPE_ID) {
+        handle_esc_rawcommand_message(ins, transfer);
     }
 }
 
@@ -553,6 +581,12 @@ static bool shouldAcceptTransfer(const CanardInstance* ins, uint64_t* out_data_t
     if (transfer_type == CanardTransferTypeRequest && data_type_id == UAVCAN_RESTARTNODE_DATA_TYPE_ID)
     {
         *out_data_type_signature = UAVCAN_RESTARTNODE_DATA_TYPE_SIGNATURE;
+        return true;
+    }
+
+    if (transfer_type == CanardTransferTypeBroadcast && data_type_id == UAVCAN_ESC_RAWCOMMAND_DATA_TYPE_ID)
+    {
+        *out_data_type_signature = UAVCAN_ESC_RAWCOMMAND_DATA_TYPE_SIGNATURE;
         return true;
     }
 

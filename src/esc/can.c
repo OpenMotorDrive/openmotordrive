@@ -35,9 +35,9 @@ void canbus_init(void) {
         false,            /* TTCM: Time triggered comm mode? */
         true,             /* ABOM: Automatic bus-off management? */
         false,            /* AWUM: Automatic wakeup mode? */
-        true,             /* NART: No automatic retransmission? */
+        false,            /* NART: No automatic retransmission? */
         false,            /* RFLM: Receive FIFO locked mode? */
-        true,            /* TXFP: Transmit FIFO priority? */
+        true,             /* TXFP: Transmit FIFO priority? */
         CAN_BTR_SJW_1TQ,  /* Resynchronization time quanta jump width.*/
         CAN_BTR_TS1_15TQ, /* Time segment 1 time quanta width. */
         CAN_BTR_TS2_2TQ,  /* Time segment 2 time quanta width. */

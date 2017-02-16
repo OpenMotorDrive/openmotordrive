@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <float.h>
 #include "math_helpers.h"
 #include "slip.h"
 
@@ -219,7 +220,7 @@ int main(int argc, char **argv) {
     printf("dt_sum %9g\n", (double)dt_sum);
     printf("ISE %9g\n", ISE);
 //     printf("IAE %9g\n", theta_e_err_abs_sum/dt_sum);
-//     printf("NIS_sum/dt_sum %9g\n", NIS_sum/dt_sum);
+    printf("NIS_sum/dt_sum %9g\n", (double)(NIS_sum/dt_sum));
 //     printf("curr_innov_sq_sum/dt_sum %9g\n", curr_innov_sq_sum/dt_sum);
 
     fclose(config_file);

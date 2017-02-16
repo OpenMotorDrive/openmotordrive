@@ -73,6 +73,7 @@ static uint32_t csa_meas_t_us;
 static enum motor_mode_t motor_mode = MOTOR_MODE_DISABLED;
 static float vbatt_m; // battery voltage
 static float duty_ref;
+static float duty_tgt;
 
 static struct {
     float i_a, i_b, i_c;
@@ -194,7 +195,13 @@ void motor_update(float dt, struct adc_sample_s* adc_sample)
             break;
 
         case MOTOR_MODE_FOC_DUTY: {
-            motor_set_iq_ref((duty_ref*vbatt_m - 6.36619772367581*motor_state.mech_omega/params.K_v)/params.R_s);
+            if (duty_ref >= -0.08 && duty_ref <= 0.08) {
+                duty_ref = constrain_float(duty_tgt, duty_ref-dt*0.08/3, duty_ref+dt*0.08/3);
+            } else {
+                duty_ref = duty_tgt;
+            }
+
+            motor_set_iq_ref((duty_ref*vbatt_m/sqrtf(2.0f) - 6.36619772367581*motor_state.mech_omega/params.K_v)/params.R_s);
             run_foc(dt);
             break;
         }
@@ -244,6 +251,8 @@ void motor_set_mode(enum motor_mode_t new_mode)
     memset(&iq_pid_state,0,sizeof(iq_pid_state));
     id_pid_param.i_ref = 0.0f;
     iq_pid_param.i_ref = 0.0f;
+    duty_tgt = 0;
+    duty_ref = 0;
 
     init_ekf(encoder_state.elec_theta);
 
@@ -252,7 +261,7 @@ void motor_set_mode(enum motor_mode_t new_mode)
 
 void motor_set_duty_ref(float val)
 {
-    duty_ref = val;
+    duty_tgt = val;
 }
 
 void motor_set_iq_ref(float iq_ref)
@@ -301,7 +310,8 @@ static void run_foc(float dt)
     float u_alpha, u_beta;
     bool overmodulation = false;
 
-    id_pid_param.i_ref = 0.0f;
+    id_pid_param.i_ref = constrain_float(params.start_current-fabsf(motor_state.elec_omega)/60, 0.0f, params.start_current);
+
     if (overmodulation) {
         id_pid_param.output_limit = vbatt_m*sqrtf(2.0f/3.0f);
     } else {
@@ -685,7 +695,6 @@ void motor_print_data(float dt) {
     uint8_t i;
     uint32_t tnow_us = micros();
     float omega_e = encoder_state.mech_omega_est*params.mot_n_poles;
-    uint32_t adc_errcnt = adc_get_errcnt();
 
     float prev_u_alpha = phase_output[(phase_output_idx+1)%2].duty_alpha * vbatt_m;
     float prev_u_beta = phase_output[(phase_output_idx+1)%2].duty_beta * vbatt_m;

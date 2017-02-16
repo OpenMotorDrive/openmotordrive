@@ -84,7 +84,7 @@ int main(void)
 
         uint32_t tnow_ms = millis();
         if (tnow_ms-last_print_ms >= 2000) {
-                drv_print_faults();
+            drv_print_faults();
             last_print_ms = tnow_ms;
         }
 
