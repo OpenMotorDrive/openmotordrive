@@ -9,8 +9,6 @@
 #include "math_helpers.h"
 #include "slip.h"
 
-static void ekf_init(float init_theta);
-static void ekf_update(float dt, float u_alpha, float u_beta, float i_alpha_m, float i_beta_m);
 static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, float* d, float* q);
 
 static float R_s;
@@ -25,6 +23,8 @@ static float T_l_pnoise;
 static float omega_pnoise;
 static float theta_pnoise;
 static float encoder_theta_e_bias;
+static float i_delay;
+static float encoder_delay;
 
 static const struct {
     const char* name;
@@ -42,6 +42,8 @@ static const struct {
     {"omega_pnoise", &omega_pnoise},
     {"theta_pnoise", &theta_pnoise},
     {"encoder_theta_e_bias", &encoder_theta_e_bias},
+    {"i_delay", &i_delay},
+    {"encoder_delay", &encoder_delay},
 };
 
 #define N_PARAMS (sizeof(param_info)/sizeof(param_info[0]))
@@ -107,6 +109,7 @@ static long double theta_e_err_abs_sum = 0;
 static long double theta_e_err_sq_sum = 0;
 static long double curr_innov_sq_sum = 0;
 static long double NIS_sum = 0;
+static long double variance_sum = 0;
 static long double dt_sum = 0;
 
 static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
@@ -120,7 +123,8 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
         ekf_init(pkt->encoder_theta_e);
         ekf_initialized = true;
     } else {
-        ekf_update(pkt->dt, pkt->u_alpha, pkt->u_beta, pkt->i_alpha_m, pkt->i_beta_m);
+        ekf_predict(pkt->dt, pkt->u_alpha, pkt->u_beta);
+        ekf_update(pkt->i_alpha_m, pkt->i_beta_m);
     }
     float* x = ekf_state[ekf_idx].x;
     float* P = ekf_state[ekf_idx].P;
@@ -130,17 +134,22 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     float i_d_m, i_q_m;
     transform_alpha_beta_to_d_q(pkt->encoder_theta_e, pkt->i_alpha_m, pkt->i_beta_m, &i_d_m, &i_q_m);
 
-    float theta_e_err = wrap_pi(pkt->encoder_theta_e-x[1]);
+    float theta_e_err = wrap_pi(pkt->encoder_theta_e-x[1]-x[0]*encoder_delay);
     float omega_e_est = x[0]*N_P;
     float omega_e_err = pkt->encoder_omega_e-omega_e_est;
 
-    theta_e_err_abs_sum += fabsf(theta_e_err);
-    theta_e_err_sq_sum += SQ(theta_e_err);
-    curr_innov_sq_sum += SQ(innov[0])+SQ(innov[1]);
-    NIS_sum += NIS;
-    dt_sum += pkt->dt;
 
+    if (pkt->tnow_us > 1e6) {
+        theta_e_err_abs_sum += fabsf(theta_e_err);
+        theta_e_err_sq_sum += SQ(theta_e_err);
+        curr_innov_sq_sum += SQ(innov[0])+SQ(innov[1]);
+        NIS_sum += NIS;
+        variance_sum += P[0]+P[5]+P[9]+P[12]+P[14];
+        dt_sum += pkt->dt;
+    }
+#ifndef NO_BULK_DATA
     fprintf(out_file, "{\"t_us\":%u, \"dt\":%9g, \"encoder_theta_e\":%9g, \"encoder_omega_e\":%9g, \"i_alpha_m\":%9g, \"i_beta_m\":%9g, \"u_alpha\":%9g, \"u_beta\":%9g, \"x\":[%9g, %9g, %9g, %9g, %9g], \"P\": [%9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g], \"theta_e_err\":%9g, \"omega_e_est\":%9g, \"omega_e_err\":%9g, \"i_d_m\": %9g, \"i_q_m\": %9g, \"NIS\": %9g}", pkt->tnow_us, pkt->dt, pkt->encoder_theta_e, pkt->encoder_omega_e, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta, x[0], x[1], x[2], x[3], x[4], P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7], P[8], P[9], P[10], P[11], P[12], P[13], P[14], theta_e_err, omega_e_est, omega_e_err, i_d_m, i_q_m, NIS);
+#endif
 }
 
 int main(int argc, char **argv) {
@@ -193,7 +202,9 @@ int main(int argc, char **argv) {
 
             if (decoded_pkt_len == sizeof(struct packet_s)) {
                 if (!first_frame) {
+#ifndef NO_BULK_DATA
                     fprintf(out_file, ",\n");
+#endif
                 }
                 handle_decoded_pkt(decoded_pkt_len, decoded_pkt, out_file);
                 first_frame = false;
@@ -207,20 +218,30 @@ int main(int argc, char **argv) {
     }
 
     double ISE = theta_e_err_sq_sum/dt_sum;
-
+    double int_NIS = NIS_sum/dt_sum;
+    double var_int = variance_sum/dt_sum;
     if (isnan(ISE)) {
         ISE = DBL_MAX;
     }
+    if (isnan(int_NIS)) {
+        int_NIS = DBL_MAX;
+    }
+    if (isnan(var_int)) {
+        var_int = DBL_MAX;
+    }
 
     fprintf(out_file, "],\n");
-    fprintf(out_file, "\"theta_IAE\": %9g,\n", (double)(theta_e_err_abs_sum/dt_sum));
-    fprintf(out_file, "\"theta_ISE\": %9g\n", ISE);
+//     fprintf(out_file, "\"theta_IAE\": %9g,\n", (double)(theta_e_err_abs_sum/dt_sum));
+    fprintf(out_file, "\"int_NIS\": %9g,\n", int_NIS);
+    fprintf(out_file, "\"theta_ISE\": %9g,\n", ISE);
+    fprintf(out_file, "\"var_int\": %9g\n", var_int);
     fprintf(out_file, "}\n");
 
     printf("dt_sum %9g\n", (double)dt_sum);
     printf("ISE %9g\n", ISE);
+    printf("var_int %9g\n", var_int);
 //     printf("IAE %9g\n", theta_e_err_abs_sum/dt_sum);
-    printf("NIS_sum/dt_sum %9g\n", (double)(NIS_sum/dt_sum));
+    printf("NIS_sum/dt_sum %9g\n", int_NIS);
 //     printf("curr_innov_sq_sum/dt_sum %9g\n", curr_innov_sq_sum/dt_sum);
 
     fclose(config_file);

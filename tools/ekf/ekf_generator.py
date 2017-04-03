@@ -27,8 +27,9 @@ T_l_pnoise = Symbol('T_l_pnoise') # Load torque process noise
 i_pnoise = Symbol('i_pnoise') # Current process noise
 omega_pnoise = Symbol('omega_pnoise')
 theta_pnoise = Symbol('theta_pnoise')
+i_delay = Symbol('i_delay')
 K_t = 30./(K_v*pi) # Motor torque constant.
-lambda_r =  2./3. * K_t/N_P # Rotor flux linkage - Ohm, section III, eqn 3.7
+lambda_r = K_t/N_P # Rotor flux linkage - Ohm, section III, eqn 3.6, modified for unitary transform
 
 # Inputs
 u_ab = Matrix(symbols('u_alpha u_beta')) # Stator voltages
@@ -61,15 +62,18 @@ u_d = u_dq[0]
 u_q = u_dq[1]
 
 i_d_dot = (L_q*omega_e_est*i_q_est - R_s*i_d_est + u_d)/L_d
-i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - lambda_r*omega_e_est + u_q)/L_q
+i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - sqrt(6)/2*lambda_r*omega_e_est + u_q)/L_q
 
-f = Matrix([
-    [omega_r_est + dt*(i_q_est*K_t/J + (L_d-L_q)*i_q_est*i_d_est - T_l_est/J)],
-    [theta_e_est + dt*omega_e_est],
-    [i_d_est + dt*i_d_dot],
-    [i_q_est + dt*i_q_dot],
-    [T_l_est]
+x_dot = Matrix([
+    (i_q_est*K_t + (L_d-L_q)*i_q_est*i_d_est - T_l_est)/J,
+    omega_e_est,
+    i_d_dot,
+    i_q_dot,
+    0
     ])
+
+f = x+dt*x_dot
+
 assert f.shape == x.shape
 
 # F: linearized state-transition model, AKA "A" in literature
@@ -92,10 +96,12 @@ Q = G*Q_u*G.T
 Q += diag(omega_pnoise**2, theta_pnoise**2, 0**2, 0**2, T_l_pnoise**2)
 
 x_p = f
+x_at_curr_meas = x+(dt-i_delay)*x_dot
 
 # P_p: covariance matrix at time k+1
 P_p = F*P*F.T + Q
 assert P_p.shape == P.shape
+P_p = upperTriangularToVec(P_p)
 
 # h: predicted measurement
 h = zeros(2,1)
@@ -104,8 +110,10 @@ h[0:2,0] = R_dq_ab(theta_e_est) * Matrix([i_d_est, i_q_est])
 # z: observation
 z = toVec(i_ab_m)
 
+z_norm = (i_ab_m[0]**2+i_ab_m[1]**2)**0.5
+
 # R: observation covariance
-R = diag(i_noise**2,i_noise**2) # Covariance of observation vector
+R = diag((i_noise+z_norm*.05)**2,(i_noise+z_norm*.05)**2) # Covariance of observation vector
 
 # y: innovation vector
 y = z-h
@@ -123,14 +131,16 @@ K = P*H.T*S_I
 
 I = eye(nStates)
 
-NIS = (y.T*S_I*y).xreplace(dict(zip(x,x_p)+zip(P,P_p))) # normalized innovation squared
+NIS = y.T*S_I*y # normalized innovation squared
 
-x_n = (x + K*y).xreplace(dict(zip(x,x_p)+zip(P,P_p)))
-P_n = ((I-K*H)*P).xreplace(dict(zip(x,x_p)+zip(P,P_p)))
+x_n = x + K*y
+P_n = (I-K*H)*P
 P_n = upperTriangularToVec(P_n)
 
 # Generate code
-x_n,P_n,y,NIS,subx = extractSubexpressions([x_n,P_n,y,NIS],'subx',threshold=5)
+x_p,P_p,x_at_curr_meas,pred_subx = extractSubexpressions([x_p,P_p,x_at_curr_meas],'subx',threshold=5)
+
+x_n,P_n,NIS,fuse_subx = extractSubexpressions([x_n,P_n,NIS],'subx',threshold=5)
 
 init_P = upperTriangularToVec(diag(0., math.pi**2, 0., 0., 0.**2))
 
@@ -148,6 +158,7 @@ sys.stdout.write(
 '\n'
 'static struct ekf_state_s ekf_state[2];\n'
 'static uint8_t ekf_idx = 0;\n'
+'static float x_at_curr_meas[5];'
 '\n'
 'static void ekf_init(float init_theta) {\n'
 '    float* state = ekf_state[ekf_idx].x;\n'
@@ -162,9 +173,44 @@ sys.stdout.write(
 '    state[1] = init_theta;\n'
 '}\n'
 '\n'
-'static void ekf_update(float dt, float u_alpha, float u_beta, float i_alpha_m, float i_beta_m) {\n'
+)
+
+sys.stdout.write('static float subx[%u];\n' % (max(len(pred_subx),len(fuse_subx)),))
+sys.stdout.write(
+'static void ekf_predict(float dt, float u_alpha, float u_beta) {\n'
 '    uint8_t next_ekf_idx = (ekf_idx+1)%2;\n'
 '    float* state = ekf_state[ekf_idx].x;\n'
+'    float* cov = ekf_state[ekf_idx].P;\n'
+'    float* state_n = ekf_state[next_ekf_idx].x;\n'
+'    float* cov_n = ekf_state[next_ekf_idx].P;\n'
+)
+
+sys.stdout.write('    // %u operations\n' % (count_ops(x_p)+count_ops(P_p)+count_ops(pred_subx),))
+
+for i in range(len(pred_subx)):
+    sys.stdout.write('    %s = %s;\n' % (pred_subx[i][0], CCodePrinter_float().doprint(pred_subx[i][1])))
+
+for i in range(len(x_p)):
+    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_p[i])))
+
+for i in range(len(x_at_curr_meas)):
+    sys.stdout.write('    x_at_curr_meas[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_at_curr_meas[i])))
+
+for i in range(len(P_p)):
+    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_p[i])))
+
+sys.stdout.write(
+'\n'
+'    state_n[1] = wrap_2pi(state_n[1]);\n'
+'    ekf_idx = next_ekf_idx;\n'
+'}\n'
+)
+
+sys.stdout.write(
+'\n'
+'static void ekf_update(float i_alpha_m, float i_beta_m) {\n'
+'    uint8_t next_ekf_idx = (ekf_idx+1)%2;\n'
+'    float* state = x_at_curr_meas;\n'
 '    float* cov = ekf_state[ekf_idx].P;\n'
 '    float* state_n = ekf_state[next_ekf_idx].x;\n'
 '    float* cov_n = ekf_state[next_ekf_idx].P;\n'
@@ -173,10 +219,9 @@ sys.stdout.write(
 '\n'
 )
 
-sys.stdout.write('    // %u operations\n' % (count_ops(x_n)+count_ops(P_n)+count_ops(subx),))
-sys.stdout.write('    static float subx[%u];\n' % (len(subx),))
-for i in range(len(subx)):
-    sys.stdout.write('    %s = %s;\n' % (subx[i][0], CCodePrinter_float().doprint(subx[i][1])))
+sys.stdout.write('    // %u operations\n' % (count_ops(x_n)+count_ops(P_n)+count_ops(fuse_subx),))
+for i in range(len(fuse_subx)):
+    sys.stdout.write('    %s = %s;\n' % (fuse_subx[i][0], CCodePrinter_float().doprint(fuse_subx[i][1])))
 
 for i in range(len(x_n)):
     sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_n[i])))
