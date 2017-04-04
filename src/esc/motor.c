@@ -432,7 +432,6 @@ static void process_adc_measurements(struct adc_sample_s* adc_sample)
 static void retrieve_encoder_measurement(void)
 {
     encoder_state.mech_theta = wrap_2pi(encoder_get_angle_rad());
-    encoder_state.mech_theta -= (cosf_fast(encoder_state.mech_theta*2)*.2*0.5)/7;
     encoder_state.elec_theta = wrap_2pi(encoder_state.mech_theta*params.mot_n_poles-params.elec_theta_bias);
 }
 
