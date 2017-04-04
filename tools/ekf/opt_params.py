@@ -1,17 +1,19 @@
-from subprocess import call
+from subprocess import check_output,call
 from scipy.optimize import minimize, basinhopping
 import sys
 import json
 import math
 
+with open('replay_src/ekf.h', 'wb') as f:
+    f.write(check_output(["python", "ekf_generator.py"]))
 
-print call(["gcc", "-DNO_BULK_DATA", "-fno-trapping-math", "-fno-signaling-nans", "replay_src/main.c", "-lm"])
+call(["gcc", "-DNO_BULK_DATA", "-fno-trapping-math", "-fno-signaling-nans", "replay_src/main.c", "-lm"])
 
 init_params = {
     "R_s": .102,
     "L_d": 28e-6,
     "L_q": 44e-6,
-    "K_v": 360,
+    "lambda_r": 0.00215917953167269,
     "J": 0.000031,
     "N_P": 7,
     "i_noise": 0.01,
@@ -24,16 +26,16 @@ init_params = {
     "encoder_delay": 0,
     }
 
-init_params = {'u_noise': 4.0004704107202, 'L_q': 4.4206497706787936e-05, 'R_s': 0.093210521872504837, 'T_l_pnoise': 0.01, 'J': 3.1449278655591416e-05, 'N_P': 7, 'i_noise': 0.0016308402307166165, 'i_delay': 4.9159942354516481e-07, 'K_v': 400, 'encoder_delay': 1.8007851480745154e-05, 'L_d': 2.1483962910302035e-05, 'theta_pnoise': 6.7663738586479169e-09, 'omega_pnoise': 0.00021543049985731788, 'encoder_theta_e_bias': -0.2594093644521529}
+init_params = {'u_noise': 2.0, 'L_q': 3.9189823237151104e-05, 'R_s': 0.062943814165774464, 'T_l_pnoise': 0.0020896777748964385, 'J': 2.3263752969425543e-05, 'N_P': 7, 'i_noise': 0.0027047604664784518, 'i_delay': 5.0480600093122016e-07, 'lambda_r': 0.00215917953167269, 'encoder_delay': 1.8007851480745154e-05, 'L_d': 3.1947579451976768e-05, 'theta_pnoise': 1.0718124170948967e-08, 'omega_pnoise': 5.9985332333787525e-07, 'encoder_theta_e_bias': -0.2594093644521529}
 
 param_bounds = {
     "R_s": (0.01, 1),
     "L_d": (20e-6, 1e-4),
     "L_q": (20e-6, 1e-4),
-    "K_v": (0,10000),
+    "lambda_r": (0,10000),
     "J": (0.000001, 0.001),
     "i_noise": (0.001, 0.05),
-    "u_noise": (0, 5),
+    "u_noise": (0, 20),
     "T_l_pnoise": (0, 100),
     "omega_pnoise": (0, 1e6),
     "theta_pnoise": (0, 1e6),
@@ -42,7 +44,7 @@ param_bounds = {
     "encoder_delay": (-1e-4,1e-4)
     }
 
-opt_param_names = ["u_noise", "J", "L_d", "L_q", "K_v", "R_s", "i_noise", "T_l_pnoise", "omega_pnoise", "theta_pnoise", "i_delay"]
+opt_param_names = ["J", "L_d", "L_q", "lambda_r", "R_s", "i_noise", "T_l_pnoise", "omega_pnoise", "theta_pnoise", "i_delay"]
 opt_params = [init_params[x] for x in opt_param_names]
 opt_param_bounds = [param_bounds[x] for x in opt_param_names]
 
@@ -68,7 +70,7 @@ def f(x):
             print k, params[k]
             return sys.float_info.max
 
-    return output_data["int_NIS"]*math.sqrt(output_data["var_int"])#*params['u_noise']*math.sqrt(output_data["int_NIS"])#*max(math.sqrt(output_data["int_NIS"]),1.)
+    return math.sqrt(output_data["int_NIS"])*math.sqrt(output_data["var_int"])#*params['u_noise']*math.sqrt(output_data["int_NIS"])#*max(math.sqrt(output_data["int_NIS"]),1.)
 
 res = minimize(f, opt_params, bounds=opt_param_bounds, method='Nelder-Mead', options={'maxiter':1000000,'maxfev':1000000})
 

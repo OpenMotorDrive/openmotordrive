@@ -14,7 +14,7 @@ static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, fl
 static float R_s;
 static float L_d;
 static float L_q;
-static float K_v;
+static float lambda_r;
 static float J;
 static float N_P;
 static float i_noise;
@@ -33,7 +33,7 @@ static const struct {
     {"R_s", &R_s},
     {"L_d", &L_d},
     {"L_q", &L_q},
-    {"K_v", &K_v},
+    {"lambda_r", &lambda_r},
     {"J", &J},
     {"N_P", &N_P},
     {"i_noise", &i_noise},
@@ -144,7 +144,7 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
         theta_e_err_sq_sum += SQ(theta_e_err);
         curr_innov_sq_sum += SQ(innov[0])+SQ(innov[1]);
         NIS_sum += NIS;
-        variance_sum += P[0]+P[5]+P[9]+P[12]+P[14];
+        variance_sum += /*P[0]+P[5]+*/P[9]+P[12]/*+P[14]*/;
         dt_sum += pkt->dt;
     }
 #ifndef NO_BULK_DATA

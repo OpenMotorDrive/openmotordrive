@@ -20,7 +20,7 @@ dt  = Symbol('dt')  # Time step
 R_s = Symbol('R_s') # Stator resistance
 L_d = Symbol('L_d')   # L_d
 L_q = Symbol('L_q')   # L_q
-K_v = Symbol('K_v') # Motor back-emf constant, RPM/V
+lambda_r = Symbol('lambda_r') # Rotor flux linkage
 N_P = Symbol('N_P') # Number of magnetic pole pairs
 J   = Symbol('J')   # Rotor inertia
 T_l_pnoise = Symbol('T_l_pnoise') # Load torque process noise
@@ -28,8 +28,6 @@ i_pnoise = Symbol('i_pnoise') # Current process noise
 omega_pnoise = Symbol('omega_pnoise')
 theta_pnoise = Symbol('theta_pnoise')
 i_delay = Symbol('i_delay')
-K_t = 30./(K_v*pi) # Motor torque constant.
-lambda_r = K_t/N_P # Rotor flux linkage - Ohm, section III, eqn 3.6, modified for unitary transform
 
 # Inputs
 u_ab = Matrix(symbols('u_alpha u_beta')) # Stator voltages
@@ -61,11 +59,13 @@ u_dq = R_ab_dq(theta_e_est) * u_ab
 u_d = u_dq[0]
 u_q = u_dq[1]
 
+T_output = N_P * (-3*L_d*i_d_est + 3*L_q*i_d_est + sqrt(6)*lambda_r) * i_q_est / 2
+omega_dot = (T_output - T_l_est)/J
 i_d_dot = (L_q*omega_e_est*i_q_est - R_s*i_d_est + u_d)/L_d
-i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - sqrt(6)/2*lambda_r*omega_e_est + u_q)/L_q
+i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - sqrt(Rational(3,2))*lambda_r*omega_e_est + u_q)/L_q
 
 x_dot = Matrix([
-    (i_q_est*K_t + (L_d-L_q)*i_q_est*i_d_est - T_l_est)/J,
+    omega_dot,
     omega_e_est,
     i_d_dot,
     i_q_dot,

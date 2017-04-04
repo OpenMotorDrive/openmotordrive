@@ -27,7 +27,7 @@
 static uint32_t tbegin_us;
 static bool waiting_to_start = false;
 static bool started = false;
-static float t_max = 10.0f;
+static float t_max = 20.0f;
 
 void program_init(void) {
     // Calibrate the encoder
@@ -50,12 +50,14 @@ void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample) {
         motor_set_mode(MOTOR_MODE_DISABLED);
     }
 
-    if (t < 2) {
+    if (t < 1) {
         motor_set_duty_ref(MIN(t*0.04f, 0.04f));
-    } else if (t < 6) {
-        motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? 0.04f : 1.0f);
+    } else if (t < 11) {
+        float thr = ((uint32_t)((t-0)*2))*0.1f;
+        motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? 0.04f : thr);
     } else {
-        motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? -0.2f : 0.2f);
+        float thr = ((uint32_t)((t-10)*2))*0.1f;
+        motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? -thr : thr);
     }
 
     motor_update(dt, adc_sample);
