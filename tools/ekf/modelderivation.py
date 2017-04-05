@@ -63,6 +63,10 @@ L_matrix[0,2] = -L_so/2 + L_x * cos(2*theta_e + 2*pi/3)
 
 L_matrix = copy_upper_to_lower_offdiagonals(L_matrix)
 
+#L_matrix = L_matrix * T_dqo_abc
+#pprint(simplify(L_matrix))
+#sys.exit()
+
 # 2.4 .. 2.6
 lambda_abc = L_matrix * I_abc + lambda_m_abc
 lambda_abc = lambda_abc.subs(dict(zip(I_abc, T_dqo_abc*I_dqo_sym)))
@@ -85,7 +89,7 @@ lambda_dqo = simplify(T_abc_dqo * lambda_abc)
 P_o = -omega_e*lambda_dqo[1]*I_dqo_sym[0] + omega_e*lambda_dqo[0]*I_dqo_sym[1]
 T = N_P * P_o/omega_e
 T = simplify(T.subs([(L_x, (L_dqo_sym[1]-L_dqo_sym[0])/2), (theta_e_dot, omega_e)]))
-
+pprint(P_o)
 print "\n################## V_dqo ##################"
 pprint(V_dqo)
 

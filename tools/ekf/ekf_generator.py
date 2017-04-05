@@ -29,6 +29,10 @@ omega_pnoise = Symbol('omega_pnoise')
 theta_pnoise = Symbol('theta_pnoise')
 i_delay = Symbol('i_delay')
 
+i0 = Symbol('i0')
+a = Symbol('a')
+b = Symbol('b')
+
 # Inputs
 u_ab = Matrix(symbols('u_alpha u_beta')) # Stator voltages
 u_noise = Symbol('u_noise') # Additive noise on stator voltage
@@ -103,6 +107,10 @@ P_p = F*P*F.T + Q
 assert P_p.shape == P.shape
 P_p = upperTriangularToVec(P_p)
 
+#x_at_curr_meas = x_at_curr_meas.xreplace(subs)
+#x_p = x_p.xreplace(subs)
+#P_p = P_p.xreplace(subs)
+
 # h: predicted measurement
 h = zeros(2,1)
 h[0:2,0] = R_dq_ab(theta_e_est) * Matrix([i_d_est, i_q_est])
@@ -137,6 +145,10 @@ x_n = x + K*y
 P_n = (I-K*H)*P
 P_n = upperTriangularToVec(P_n)
 
+#x_n = x_n.xreplace(subs)
+#P_n = P_n.xreplace(subs)
+#NIS = NIS.xreplace(subs)
+
 # Generate code
 x_p,P_p,x_at_curr_meas,pred_subx = extractSubexpressions([x_p,P_p,x_at_curr_meas],'subx',threshold=5)
 
@@ -149,24 +161,28 @@ sys.stdout.write(
 '#include <math.h>\n'
 '#include "math_helpers.h"\n'
 '\n'
+'#ifndef FTYPE\n'
+'  #define FTYPE float\n'
+'#endif\n'
+'\n'
 'struct ekf_state_s {\n'
-'    float x[5];\n'
-'    float P[15];\n'
-'    float innov[2];\n'
-'    float NIS;\n'
+'    FTYPE x[5];\n'
+'    FTYPE P[15];\n'
+'    FTYPE innov[2];\n'
+'    FTYPE NIS;\n'
 '};\n'
 '\n'
 'static struct ekf_state_s ekf_state[2];\n'
 'static uint8_t ekf_idx = 0;\n'
-'static float x_at_curr_meas[5];'
+'static FTYPE x_at_curr_meas[5];'
 '\n'
-'static void ekf_init(float init_theta) {\n'
-'    float* state = ekf_state[ekf_idx].x;\n'
-'    float* cov = ekf_state[ekf_idx].P;\n'
+'static void ekf_init(FTYPE init_theta) {\n'
+'    FTYPE* state = ekf_state[ekf_idx].x;\n'
+'    FTYPE* cov = ekf_state[ekf_idx].P;\n'
 )
 
 for i in range(len(init_P)):
-    sys.stdout.write('    cov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(init_P[i])))
+    sys.stdout.write('    cov[%u] = %s;\n' % (i, CCodePrinter().doprint(init_P[i])))
 
 sys.stdout.write(
 '    memset(&ekf_state[ekf_idx], 0, sizeof(ekf_state[ekf_idx]));\n'
@@ -175,29 +191,29 @@ sys.stdout.write(
 '\n'
 )
 
-sys.stdout.write('static float subx[%u];\n' % (max(len(pred_subx),len(fuse_subx)),))
+sys.stdout.write('static FTYPE subx[%u];\n' % (max(len(pred_subx),len(fuse_subx)),))
 sys.stdout.write(
-'static void ekf_predict(float dt, float u_alpha, float u_beta) {\n'
+'static void ekf_predict(FTYPE dt, FTYPE u_alpha, FTYPE u_beta) {\n'
 '    uint8_t next_ekf_idx = (ekf_idx+1)%2;\n'
-'    float* state = ekf_state[ekf_idx].x;\n'
-'    float* cov = ekf_state[ekf_idx].P;\n'
-'    float* state_n = ekf_state[next_ekf_idx].x;\n'
-'    float* cov_n = ekf_state[next_ekf_idx].P;\n'
+'    FTYPE* state = ekf_state[ekf_idx].x;\n'
+'    FTYPE* cov = ekf_state[ekf_idx].P;\n'
+'    FTYPE* state_n = ekf_state[next_ekf_idx].x;\n'
+'    FTYPE* cov_n = ekf_state[next_ekf_idx].P;\n'
 )
 
 sys.stdout.write('    // %u operations\n' % (count_ops(x_p)+count_ops(P_p)+count_ops(pred_subx),))
 
 for i in range(len(pred_subx)):
-    sys.stdout.write('    %s = %s;\n' % (pred_subx[i][0], CCodePrinter_float().doprint(pred_subx[i][1])))
+    sys.stdout.write('    %s = %s;\n' % (pred_subx[i][0], CCodePrinter().doprint(pred_subx[i][1])))
 
 for i in range(len(x_p)):
-    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_p[i])))
+    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter().doprint(x_p[i])))
 
 for i in range(len(x_at_curr_meas)):
-    sys.stdout.write('    x_at_curr_meas[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_at_curr_meas[i])))
+    sys.stdout.write('    x_at_curr_meas[%u] = %s;\n' % (i, CCodePrinter().doprint(x_at_curr_meas[i])))
 
 for i in range(len(P_p)):
-    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_p[i])))
+    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter().doprint(P_p[i])))
 
 sys.stdout.write(
 '\n'
@@ -208,31 +224,31 @@ sys.stdout.write(
 
 sys.stdout.write(
 '\n'
-'static void ekf_update(float i_alpha_m, float i_beta_m) {\n'
+'static void ekf_update(FTYPE i_alpha_m, FTYPE i_beta_m) {\n'
 '    uint8_t next_ekf_idx = (ekf_idx+1)%2;\n'
-'    float* state = x_at_curr_meas;\n'
-'    float* cov = ekf_state[ekf_idx].P;\n'
-'    float* state_n = ekf_state[next_ekf_idx].x;\n'
-'    float* cov_n = ekf_state[next_ekf_idx].P;\n'
-'    float* innov = ekf_state[next_ekf_idx].innov;\n'
-'    float* NIS = &ekf_state[next_ekf_idx].NIS;\n'
+'    FTYPE* state = x_at_curr_meas;\n'
+'    FTYPE* cov = ekf_state[ekf_idx].P;\n'
+'    FTYPE* state_n = ekf_state[next_ekf_idx].x;\n'
+'    FTYPE* cov_n = ekf_state[next_ekf_idx].P;\n'
+'    FTYPE* innov = ekf_state[next_ekf_idx].innov;\n'
+'    FTYPE* NIS = &ekf_state[next_ekf_idx].NIS;\n'
 '\n'
 )
 
 sys.stdout.write('    // %u operations\n' % (count_ops(x_n)+count_ops(P_n)+count_ops(fuse_subx),))
 for i in range(len(fuse_subx)):
-    sys.stdout.write('    %s = %s;\n' % (fuse_subx[i][0], CCodePrinter_float().doprint(fuse_subx[i][1])))
+    sys.stdout.write('    %s = %s;\n' % (fuse_subx[i][0], CCodePrinter().doprint(fuse_subx[i][1])))
 
 for i in range(len(x_n)):
-    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_n[i])))
+    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter().doprint(x_n[i])))
 
 for i in range(len(P_n)):
-    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_n[i])))
+    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter().doprint(P_n[i])))
 
 for i in range(len(y)):
-    sys.stdout.write('    innov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(y[i])))
+    sys.stdout.write('    innov[%u] = %s;\n' % (i, CCodePrinter().doprint(y[i])))
 
-sys.stdout.write('    *NIS = %s;\n' % (CCodePrinter_float().doprint(NIS[0]),))
+sys.stdout.write('    *NIS = %s;\n' % (CCodePrinter().doprint(NIS[0]),))
 
 sys.stdout.write(
 '\n'

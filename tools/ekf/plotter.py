@@ -62,4 +62,6 @@ with open(sys.argv[1], 'rb') as jsonfile:
     plt.subplot(4,2,8,sharex=ax1)
     plt.title('electrical rotor angular velocity error vs sensor')
     plt.plot(t, omega_e_err)
+    #plt.savefig('out.png', dpi=200)
+
     plt.show()

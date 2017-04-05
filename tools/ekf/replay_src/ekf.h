@@ -2,19 +2,23 @@
 #include <math.h>
 #include "math_helpers.h"
 
+#ifndef FTYPE
+  #define FTYPE float
+#endif
+
 struct ekf_state_s {
-    float x[5];
-    float P[15];
-    float innov[2];
-    float NIS;
+    FTYPE x[5];
+    FTYPE P[15];
+    FTYPE innov[2];
+    FTYPE NIS;
 };
 
 static struct ekf_state_s ekf_state[2];
 static uint8_t ekf_idx = 0;
-static float x_at_curr_meas[5];
-static void ekf_init(float init_theta) {
-    float* state = ekf_state[ekf_idx].x;
-    float* cov = ekf_state[ekf_idx].P;
+static FTYPE x_at_curr_meas[5];
+static void ekf_init(FTYPE init_theta) {
+    FTYPE* state = ekf_state[ekf_idx].x;
+    FTYPE* cov = ekf_state[ekf_idx].P;
     cov[0] = 0;
     cov[1] = 0;
     cov[2] = 0;
@@ -34,28 +38,28 @@ static void ekf_init(float init_theta) {
     state[1] = init_theta;
 }
 
-static float subx[43];
-static void ekf_predict(float dt, float u_alpha, float u_beta) {
+static FTYPE subx[43];
+static void ekf_predict(FTYPE dt, FTYPE u_alpha, FTYPE u_beta) {
     uint8_t next_ekf_idx = (ekf_idx+1)%2;
-    float* state = ekf_state[ekf_idx].x;
-    float* cov = ekf_state[ekf_idx].P;
-    float* state_n = ekf_state[next_ekf_idx].x;
-    float* cov_n = ekf_state[next_ekf_idx].P;
+    FTYPE* state = ekf_state[ekf_idx].x;
+    FTYPE* cov = ekf_state[ekf_idx].P;
+    FTYPE* state_n = ekf_state[next_ekf_idx].x;
+    FTYPE* cov_n = ekf_state[next_ekf_idx].P;
     // 333 operations
     subx[0] = 1.0/J;
-    subx[1] = -3.0/2.0*L_d*state[2] + (3.0/2.0)*L_q*state[2] + 1.22474487139159*lambda_r;
+    subx[1] = -3.0L/2.0L*L_d*state[2] + (3.0L/2.0L)*L_q*state[2] + 1.22474487139159*lambda_r;
     subx[2] = N_P*dt;
-    subx[3] = cosf_fast(state[1]);
-    subx[4] = sinf_fast(state[1]);
+    subx[3] = cos(state[1]);
+    subx[4] = sin(state[1]);
     subx[5] = (L_q*N_P*state[0]*state[3] - R_s*state[2] + subx[3]*u_alpha + subx[4]*u_beta)/L_d;
     subx[6] = (-L_d*N_P*state[0]*state[2] - 1.22474487139159*N_P*lambda_r*state[0] - R_s*state[3] + subx[3]*u_beta - subx[4]*u_alpha)/L_q;
     subx[7] = dt*subx[0];
     subx[8] = N_P*dt*subx[0]*subx[1];
-    subx[9] = (1.0/2.0)*N_P*dt*state[3]*subx[0]*(-3*L_d + 3*L_q);
+    subx[9] = (1.0L/2.0L)*N_P*dt*state[3]*subx[0]*(-3*L_d + 3*L_q);
     subx[10] = cov[11]*subx[9] + cov[13]*subx[8] - cov[14]*subx[7] + cov[4];
     subx[11] = cov[10]*subx[9] + cov[12]*subx[8] - cov[13]*subx[7] + cov[3];
     subx[12] = cov[10]*subx[8] - cov[11]*subx[7] + cov[2] + cov[9]*subx[9];
-    subx[13] = cov[0] + (1.0/2.0)*cov[2]*state[3]*subx[0]*subx[2]*(-3*L_d + 3*L_q) + cov[3]*subx[0]*subx[1]*subx[2] - cov[4]*subx[7];
+    subx[13] = cov[0] + (1.0L/2.0L)*cov[2]*state[3]*subx[0]*subx[2]*(-3*L_d + 3*L_q) + cov[3]*subx[0]*subx[1]*subx[2] - cov[4]*subx[7];
     subx[14] = cov[1] + cov[6]*subx[9] + cov[7]*subx[8] - cov[8]*subx[7];
     subx[15] = 1 - R_s*dt/L_d;
     subx[16] = dt*(subx[3]*u_beta - subx[4]*u_alpha)/L_d;
@@ -79,38 +83,38 @@ static void ekf_predict(float dt, float u_alpha, float u_beta) {
     x_at_curr_meas[2] = state[2] + subx[5]*(dt - i_delay);
     x_at_curr_meas[3] = state[3] + subx[6]*(dt - i_delay);
     x_at_curr_meas[4] = state[4];
-    cov_n[0] = ((omega_pnoise)*(omega_pnoise)) - subx[10]*subx[7] + subx[11]*subx[8] + subx[12]*subx[9] + subx[13];
+    cov_n[0] = pow(omega_pnoise, 2) - subx[10]*subx[7] + subx[11]*subx[8] + subx[12]*subx[9] + subx[13];
     cov_n[1] = subx[13]*subx[2] + subx[14];
     cov_n[2] = subx[11]*subx[17] + subx[12]*subx[15] + subx[13]*subx[18]*subx[2] + subx[14]*subx[16];
     cov_n[3] = subx[11]*subx[19] - subx[12]*subx[22] + subx[13]*subx[21] + subx[14]*subx[20];
     cov_n[4] = subx[10];
-    cov_n[5] = cov[1]*subx[2] + cov[5] + subx[2]*(cov[0]*subx[2] + cov[1]) + ((theta_pnoise)*(theta_pnoise));
+    cov_n[5] = cov[1]*subx[2] + cov[5] + subx[2]*(cov[0]*subx[2] + cov[1]) + pow(theta_pnoise, 2);
     cov_n[6] = subx[15]*(cov[2]*subx[2] + cov[6]) + subx[16]*(cov[1]*subx[2] + cov[5]) + subx[17]*(cov[3]*subx[2] + cov[7]) + subx[18]*subx[2]*(cov[0]*subx[2] + cov[1]);
     cov_n[7] = subx[19]*(cov[3]*subx[2] + cov[7]) + subx[20]*(cov[1]*subx[2] + cov[5]) + subx[21]*(cov[0]*subx[2] + cov[1]) - subx[22]*(cov[2]*subx[2] + cov[6]);
     cov_n[8] = cov[4]*subx[2] + cov[8];
-    cov_n[9] = N_P*dt*subx[18]*subx[26] + subx[15]*subx[23] + subx[16]*subx[24] + subx[17]*subx[25] + ((dt)*(dt))*((subx[3])*(subx[3]))*((u_noise)*(u_noise))/((L_d)*(L_d)) + ((dt)*(dt))*((subx[4])*(subx[4]))*((u_noise)*(u_noise))/((L_d)*(L_d));
+    cov_n[9] = N_P*dt*subx[18]*subx[26] + subx[15]*subx[23] + subx[16]*subx[24] + subx[17]*subx[25] + pow(dt, 2)*pow(subx[3], 2)*pow(u_noise, 2)/pow(L_d, 2) + pow(dt, 2)*pow(subx[4], 2)*pow(u_noise, 2)/pow(L_d, 2);
     cov_n[10] = subx[19]*subx[25] + subx[20]*subx[24] + subx[21]*subx[26] - subx[22]*subx[23];
     cov_n[11] = cov[11]*subx[15] + cov[13]*subx[17] + cov[4]*subx[18]*subx[2] + cov[8]*subx[16];
-    cov_n[12] = subx[19]*(-cov[10]*subx[22] + cov[12]*subx[19] + cov[3]*subx[21] + cov[7]*subx[20]) + subx[20]*(cov[1]*subx[21] + cov[5]*subx[20] - cov[6]*subx[22] + cov[7]*subx[19]) + subx[21]*(cov[0]*subx[21] + cov[1]*subx[20] - cov[2]*subx[22] + cov[3]*subx[19]) - subx[22]*(cov[10]*subx[19] + cov[2]*subx[21] + cov[6]*subx[20] - cov[9]*subx[22]) + ((dt)*(dt))*((subx[3])*(subx[3]))*((u_noise)*(u_noise))/((L_q)*(L_q)) + ((dt)*(dt))*((subx[4])*(subx[4]))*((u_noise)*(u_noise))/((L_q)*(L_q));
+    cov_n[12] = subx[19]*(-cov[10]*subx[22] + cov[12]*subx[19] + cov[3]*subx[21] + cov[7]*subx[20]) + subx[20]*(cov[1]*subx[21] + cov[5]*subx[20] - cov[6]*subx[22] + cov[7]*subx[19]) + subx[21]*(cov[0]*subx[21] + cov[1]*subx[20] - cov[2]*subx[22] + cov[3]*subx[19]) - subx[22]*(cov[10]*subx[19] + cov[2]*subx[21] + cov[6]*subx[20] - cov[9]*subx[22]) + pow(dt, 2)*pow(subx[3], 2)*pow(u_noise, 2)/pow(L_q, 2) + pow(dt, 2)*pow(subx[4], 2)*pow(u_noise, 2)/pow(L_q, 2);
     cov_n[13] = -cov[11]*subx[22] + cov[13]*subx[19] + cov[4]*subx[21] + cov[8]*subx[20];
-    cov_n[14] = ((T_l_pnoise)*(T_l_pnoise)) + cov[14];
+    cov_n[14] = pow(T_l_pnoise, 2) + cov[14];
 
     state_n[1] = wrap_2pi(state_n[1]);
     ekf_idx = next_ekf_idx;
 }
 
-static void ekf_update(float i_alpha_m, float i_beta_m) {
+static void ekf_update(FTYPE i_alpha_m, FTYPE i_beta_m) {
     uint8_t next_ekf_idx = (ekf_idx+1)%2;
-    float* state = x_at_curr_meas;
-    float* cov = ekf_state[ekf_idx].P;
-    float* state_n = ekf_state[next_ekf_idx].x;
-    float* cov_n = ekf_state[next_ekf_idx].P;
-    float* innov = ekf_state[next_ekf_idx].innov;
-    float* NIS = &ekf_state[next_ekf_idx].NIS;
+    FTYPE* state = x_at_curr_meas;
+    FTYPE* cov = ekf_state[ekf_idx].P;
+    FTYPE* state_n = ekf_state[next_ekf_idx].x;
+    FTYPE* cov_n = ekf_state[next_ekf_idx].P;
+    FTYPE* innov = ekf_state[next_ekf_idx].innov;
+    FTYPE* NIS = &ekf_state[next_ekf_idx].NIS;
 
     // 294 operations
-    subx[0] = cosf_fast(state[1]);
-    subx[1] = sinf_fast(state[1]);
+    subx[0] = cos(state[1]);
+    subx[1] = sin(state[1]);
     subx[2] = state[2]*subx[0] - state[3]*subx[1];
     subx[3] = cov[1]*subx[2] + cov[2]*subx[1] + cov[3]*subx[0];
     subx[4] = -state[2]*subx[1] - state[3]*subx[0];
@@ -118,13 +122,13 @@ static void ekf_update(float i_alpha_m, float i_beta_m) {
     subx[6] = cov[10]*subx[0] + cov[6]*subx[2] + cov[9]*subx[1];
     subx[7] = cov[10]*subx[1] + cov[12]*subx[0] + cov[7]*subx[2];
     subx[8] = subx[0]*subx[6] - subx[1]*subx[7] + subx[4]*subx[5];
-    subx[9] = ((i_noise + 0.05*sqrtf(((i_alpha_m)*(i_alpha_m)) + ((i_beta_m)*(i_beta_m))))*(i_noise + 0.05*sqrtf(((i_alpha_m)*(i_alpha_m)) + ((i_beta_m)*(i_beta_m)))));
+    subx[9] = pow(i_noise + 0.05*sqrt(pow(i_alpha_m, 2) + pow(i_beta_m, 2)), 2);
     subx[10] = subx[0]*subx[7] + subx[1]*subx[6] + subx[2]*subx[5] + subx[9];
     subx[11] = cov[5]*subx[4] + cov[6]*subx[0] - cov[7]*subx[1];
     subx[12] = -cov[10]*subx[1] + cov[6]*subx[4] + cov[9]*subx[0];
     subx[13] = cov[10]*subx[0] - cov[12]*subx[1] + cov[7]*subx[4];
     subx[14] = subx[0]*subx[12] + subx[11]*subx[4] - subx[13]*subx[1] + subx[9];
-    subx[15] = 1.0/(subx[10]*subx[14] - ((subx[8])*(subx[8])));
+    subx[15] = 1.0/(subx[10]*subx[14] - pow(subx[8], 2));
     subx[16] = subx[14]*subx[15];
     subx[17] = cov[1]*subx[4] + cov[2]*subx[0] - cov[3]*subx[1];
     subx[18] = subx[15]*subx[8];
@@ -172,8 +176,8 @@ static void ekf_update(float i_alpha_m, float i_beta_m) {
     cov_n[12] = cov[10]*(-subx[0]*subx[28] - subx[1]*subx[29]) + cov[12]*(-subx[0]*subx[29] + subx[1]*subx[28] + 1) + cov[7]*(-subx[28]*subx[4] - subx[29]*subx[2]);
     cov_n[13] = cov[11]*(-subx[0]*subx[28] - subx[1]*subx[29]) + cov[13]*(-subx[0]*subx[29] + subx[1]*subx[28] + 1) + cov[8]*(-subx[28]*subx[4] - subx[29]*subx[2]);
     cov_n[14] = cov[11]*(-subx[0]*subx[32] - subx[1]*subx[33]) + cov[13]*(-subx[0]*subx[33] + subx[1]*subx[32]) + cov[14] + cov[8]*(-subx[2]*subx[33] - subx[32]*subx[4]);
-    innov[0] = i_alpha_m - state[2]*cosf_fast(state[1]) + state[3]*sinf_fast(state[1]);
-    innov[1] = i_beta_m - state[2]*sinf_fast(state[1]) - state[3]*cosf_fast(state[1]);
+    innov[0] = i_alpha_m - state[2]*cos(state[1]) + state[3]*sin(state[1]);
+    innov[1] = i_beta_m - state[2]*sin(state[1]) - state[3]*cos(state[1]);
     *NIS = subx[20]*(subx[16]*subx[20] - subx[18]*subx[23]) + subx[23]*(-subx[18]*subx[20] + subx[21]*subx[23]);
 
     state_n[1] = wrap_2pi(state_n[1]);

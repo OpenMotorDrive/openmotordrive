@@ -25,6 +25,9 @@ static float theta_pnoise;
 static float encoder_theta_e_bias;
 static float i_delay;
 static float encoder_delay;
+static float i0;
+static float a;
+static float b;
 
 static const struct {
     const char* name;
@@ -44,6 +47,9 @@ static const struct {
     {"encoder_theta_e_bias", &encoder_theta_e_bias},
     {"i_delay", &i_delay},
     {"encoder_delay", &encoder_delay},
+    {"i0", &i0},
+    {"a", &a},
+    {"b", &b},
 };
 
 #define N_PARAMS (sizeof(param_info)/sizeof(param_info[0]))
@@ -91,6 +97,7 @@ static bool read_config_file(FILE* config_file) {
     }
 }
 
+#define FTYPE float
 #include "ekf.h"
 
 struct packet_s {
@@ -124,11 +131,15 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
         ekf_initialized = true;
     } else {
         ekf_predict(pkt->dt, pkt->u_alpha, pkt->u_beta);
-        ekf_update(pkt->i_alpha_m, pkt->i_beta_m);
+//         ekf_update(pkt->i_alpha_m, pkt->i_beta_m);
+        ekf_state[ekf_idx].x[0] = pkt->encoder_omega_e/7;
+        ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
+        memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
+
     }
-    float* x = ekf_state[ekf_idx].x;
-    float* P = ekf_state[ekf_idx].P;
-    float* innov = ekf_state[ekf_idx].innov;
+    FTYPE* x = ekf_state[ekf_idx].x;
+    FTYPE* P = ekf_state[ekf_idx].P;
+    FTYPE* innov = ekf_state[ekf_idx].innov;
     float NIS = ekf_state[ekf_idx].NIS;
 
     float i_d_m, i_q_m;
@@ -144,7 +155,10 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
         theta_e_err_sq_sum += SQ(theta_e_err);
         curr_innov_sq_sum += SQ(innov[0])+SQ(innov[1]);
         NIS_sum += NIS;
-        variance_sum += /*P[0]+P[5]+*/P[9]+P[12]/*+P[14]*/;
+//         variance_sum += P[0];
+//         variance_sum += P[5];
+        variance_sum += P[9]+P[12];
+//         variance_sum += P[14];
         dt_sum += pkt->dt;
     }
 #ifndef NO_BULK_DATA

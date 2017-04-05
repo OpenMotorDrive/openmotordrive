@@ -1,12 +1,14 @@
-u_noise       .6
+u_noise       5
 L_q 30e-6
 R_s     0.05
-T_l_pnoise      0.001
+T_l_pnoise      0.015
 J   0.0001
 N_P         7
+lambda_r 0.002759
 i_noise      0.01
-K_v       340
 L_d 30e-6
 theta_pnoise         0
 omega_pnoise         0
 encoder_theta_e_bias     0
+i_delay 0
+encoder_delay 0
