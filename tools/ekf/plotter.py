@@ -3,6 +3,7 @@ import json
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+from math import *
 
 with open(sys.argv[1], 'rb') as jsonfile:
     data = json.load(jsonfile)['data']
@@ -13,8 +14,8 @@ with open(sys.argv[1], 'rb') as jsonfile:
     encoder_omega_e = np.array([x['encoder_omega_e'] for x in data])
     i_alpha_m = np.array([x['i_alpha_m'] for x in data])
     i_beta_m = np.array([x['i_beta_m'] for x in data])
-    i_d_m = np.array([x['i_d_m'] for x in data])
-    i_q_m = np.array([x['i_q_m'] for x in data])
+    i_d_m = np.array([x['i_d_m'] for x in data])*sqrt(3./2.)
+    i_q_m = np.array([x['i_q_m'] for x in data])*sqrt(3./2.)
     u_alpha = np.array([x['u_alpha'] for x in data])
     u_beta = np.array([x['u_beta'] for x in data])
     state = np.array([x['x'] for x in data])

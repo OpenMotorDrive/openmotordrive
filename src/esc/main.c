@@ -75,7 +75,7 @@ int main(void)
             encoder_read_angle();
             adc_get_sample(&adc_sample);
             d_seq = adc_sample.seq-prev_seq;
-        } while (d_seq < 4);
+        } while (d_seq < 2);
         prev_seq = adc_sample.seq;
         float dt = d_seq*adc_get_smp_period();
 

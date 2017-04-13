@@ -16,19 +16,23 @@ def copy_upper_to_lower_offdiagonals(M):
 theta_e = dynamicsymbols('theta_e')
 theta_e_dot = dynamicsymbols('theta_e',1)
 omega_e = dynamicsymbols('omega_e')
+theta = theta_e
 
+#T_abc_dqo_ohm = sqrt(Rational(2,3))*Matrix([[cos(theta_e), cos(theta_e-2*pi/3), cos(theta_e+2*pi/3)],
+                                            #[sin(theta_e), sin(theta_e-2*pi/3), sin(theta_e+2*pi/3)],
+                                            #[1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]])
 
-T_abc_aby = sqrt(2)/sqrt(3)*Matrix([[ S.One     , -S.Half   , -S.Half    ],
-                                    [ S.Zero    , sqrt(3)/2 , -sqrt(3)/2 ],
-                                    [ 1/sqrt(2) , 1/sqrt(2) , 1/sqrt(2)  ]])
+#T_dqo_abc_ohm = sqrt(Rational(2,3))*Matrix([[cos(theta_e), cos(theta_e-2*pi/3), cos(theta_e+2*pi/3)],
+                                            #[sin(theta_e), sin(theta_e-2*pi/3), sin(theta_e+2*pi/3)],
+                                            #[1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]]).T
 
-T_aby_dqo = Matrix([[ cos(theta_e), sin(theta_e), S.Zero],
-                    [-sin(theta_e), cos(theta_e), S.Zero],
-                    [     S.Zero,     S.Zero,  S.One]])
+T_abc_dqo = sqrt(Rational(2,3))*Matrix([[cos(theta_e), cos(theta_e-2*pi/3), cos(theta_e+2*pi/3)],
+                                        [-sin(theta_e), -sin(theta_e-2*pi/3), -sin(theta_e+2*pi/3)],
+                                        [1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]])
 
-T_abc_dqo = T_aby_dqo*T_abc_aby
-
-T_dqo_abc = T_abc_aby.inv()*T_aby_dqo.T
+T_dqo_abc = sqrt(Rational(2,3))*Matrix([[cos(theta_e), cos(theta_e-2*pi/3), cos(theta_e+2*pi/3)],
+                                        [-sin(theta_e), -sin(theta_e-2*pi/3), -sin(theta_e+2*pi/3)],
+                                        [1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]]).T
 
 I_abc = Matrix(dynamicsymbols('I_(a:c)'))
 lambda_m = Symbol('lambda_m')
@@ -89,12 +93,14 @@ lambda_dqo = simplify(T_abc_dqo * lambda_abc)
 P_o = -omega_e*lambda_dqo[1]*I_dqo_sym[0] + omega_e*lambda_dqo[0]*I_dqo_sym[1]
 T = N_P * P_o/omega_e
 T = simplify(T.subs([(L_x, (L_dqo_sym[1]-L_dqo_sym[0])/2), (theta_e_dot, omega_e)]))
-pprint(P_o)
 print "\n################## V_dqo ##################"
 pprint(V_dqo)
 
 print "\n################ I_dqo_dot ################"
 pprint(I_dqo_dot)
+
+print "\n################# Power #################"
+pprint(P_o)
 
 print "\n################# Torque #################"
 pprint(T)

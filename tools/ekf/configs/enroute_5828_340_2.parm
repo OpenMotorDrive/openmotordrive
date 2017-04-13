@@ -4,9 +4,9 @@ lambda_r  0.002759
 N_P         7
 J 0.000257888
 R_s 0.0770084
-T_l_pnoise 0.00252101
-i_noise 0.00214289
-i_delay 1.13402e-05
+T_l_pnoise 0.05
+i_noise 0.01
+i_delay 0
 encoder_delay         0
 L_d 3.00758e-05
 theta_pnoise         0

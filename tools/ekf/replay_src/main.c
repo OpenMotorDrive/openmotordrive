@@ -97,7 +97,7 @@ static bool read_config_file(FILE* config_file) {
     }
 }
 
-#define FTYPE float
+#define FTYPE double
 #include "ekf.h"
 
 struct packet_s {
@@ -125,16 +125,18 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
         return;
     }
     struct packet_s* pkt = (struct packet_s*)buf;
+
     pkt->encoder_theta_e = wrap_2pi(pkt->encoder_theta_e-encoder_theta_e_bias);
     if (!ekf_initialized) {
         ekf_init(pkt->encoder_theta_e);
         ekf_initialized = true;
     } else {
+
         ekf_predict(pkt->dt, pkt->u_alpha, pkt->u_beta);
-//         ekf_update(pkt->i_alpha_m, pkt->i_beta_m);
-        ekf_state[ekf_idx].x[0] = pkt->encoder_omega_e/7;
-        ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
-        memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
+        ekf_update(pkt->i_alpha_m, pkt->i_beta_m);
+
+//         ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
+//         memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
 
     }
     FTYPE* x = ekf_state[ekf_idx].x;
@@ -145,9 +147,14 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     float i_d_m, i_q_m;
     transform_alpha_beta_to_d_q(pkt->encoder_theta_e, pkt->i_alpha_m, pkt->i_beta_m, &i_d_m, &i_q_m);
 
+    float u_d, u_q;
+    transform_alpha_beta_to_d_q(pkt->encoder_theta_e, pkt->u_alpha, pkt->u_beta, &u_d, &u_q);
+
     float theta_e_err = wrap_pi(pkt->encoder_theta_e-x[1]-x[0]*encoder_delay);
     float omega_e_est = x[0]*N_P;
     float omega_e_err = pkt->encoder_omega_e-omega_e_est;
+
+
 
 
     if (pkt->tnow_us > 1e6) {

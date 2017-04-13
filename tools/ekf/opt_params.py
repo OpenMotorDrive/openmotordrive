@@ -6,11 +6,16 @@ import json
 import math
 import re
 
+best_x = None
+best_obj = None
+
 def objective_func(x):
-    global objective
+    global objective, best_x, best_obj
     params = dict(init_params)
     for i in range(len(x)):
         params[opt_param_names[i]] = x[i]
+
+    params['L_d'] = params['L_q']*.682
 
     print params
 
@@ -32,9 +37,13 @@ def objective_func(x):
     if objective=="RMS_THETA":
         obj = math.sqrt(output_data["theta_ISE"])
     elif objective=="CURRENT_CONSISTENCY":
-        obj = math.sqrt(output_data["int_NIS"])*math.sqrt(output_data["var_int"])
+        obj = math.sqrt(output_data["int_NIS"])*math.sqrt(output_data["var_int"])*math.sqrt(output_data["theta_ISE"])
 
     print "obj: %f" % (obj,)
+
+    if best_obj is None or obj < best_obj:
+        best_obj = obj
+        best_x = x
 
     return obj
 
@@ -54,32 +63,40 @@ with open(sys.argv[1], 'r') as f:
 
 param_bounds = {
     "R_s": (0.01, 1),
-    "L_d": (20e-6, 1e-4),
-    "L_q": (20e-6, 1e-4),
+    "L_d": (1e-6, 1e-3),
+    "L_q": (1e-6, 1e-3),
     "lambda_r": (0,10000),
     "J": (0.000001, 0.001),
-    "i_noise": (0.001, 0.05),
+    "i_noise": (0.001, 0.1),
     "u_noise": (0, 20),
     "T_l_pnoise": (0, 100),
     "omega_pnoise": (0, 1e6),
     "theta_pnoise": (0, 1e6),
     "encoder_theta_e_bias": (-math.pi, math.pi),
     "i_delay": (-1e-4,1e-4),
-    "encoder_delay": (-1e-4,1e-4),
+    "encoder_delay": (-1e-3,1e-3),
     "i0": (0,10000),
     "a": (0, 10000),
     "b": (0, 10000),
     }
 
-opt_param_names = ["J", "L_d", "lambda_r", "L_q", "R_s", "T_l_pnoise", "i_delay"]
-objective="CURRENT_CONSISTENCY"
-#opt_param_names = ["i0", "a", "b"]
-
+opt_param_names = ["J", "L_q", "i_noise", "lambda_r", "T_l_pnoise", "encoder_theta_e_bias", "encoder_delay"]
+objective="RMS_THETA"
 opt_params = [init_params[x] for x in opt_param_names]
 opt_param_bounds = [param_bounds[x] for x in opt_param_names]
-
 res = minimize(objective_func, opt_params, bounds=opt_param_bounds, method='Nelder-Mead', options={'maxiter':1000000,'maxfev':1000000})
+init_params.update(dict(zip(opt_param_names, res.x)))
+#res = minimize(objective_func, opt_params, bounds=opt_param_bounds, method='Nelder-Mead', options={'maxiter':1000000,'maxfev':1000000})
+
+#objective="RMS_THETA"
+#opt_param_names = ["T_l_pnoise", "u_noise", "encoder_theta_e_bias", "encoder_delay"]
+#opt_params = [init_params[x] for x in opt_param_names]
+#opt_param_bounds = [param_bounds[x] for x in opt_param_names]
+#res = minimize(objective_func, opt_params, bounds=opt_param_bounds, method='Nelder-Mead', options={'maxiter':1000000,'maxfev':1000000})
+#init_params.update(dict(zip(opt_param_names, res.x)))
+#res = minimize(objective_func, opt_params, bounds=opt_param_bounds, method='Nelder-Mead', options={'maxiter':1000000,'maxfev':1000000})
+
 
 print res
 objective_func(res.x)
-
+print best_x

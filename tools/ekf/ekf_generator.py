@@ -63,10 +63,11 @@ u_dq = R_ab_dq(theta_e_est) * u_ab
 u_d = u_dq[0]
 u_q = u_dq[1]
 
-T_output = N_P * (-3*L_d*i_d_est + 3*L_q*i_d_est + sqrt(6)*lambda_r) * i_q_est / 2
+T_output = N_P * (3*(L_d-L_q)*i_d_est + sqrt(6)*lambda_r) * i_q_est / 2
 omega_dot = (T_output - T_l_est)/J
+
 i_d_dot = (L_q*omega_e_est*i_q_est - R_s*i_d_est + u_d)/L_d
-i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - sqrt(Rational(3,2))*lambda_r*omega_e_est + u_q)/L_q
+i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - sqrt(6)/2*lambda_r*omega_e_est + u_q)/L_q
 
 x_dot = Matrix([
     omega_dot,
@@ -121,7 +122,7 @@ z = toVec(i_ab_m)
 z_norm = (i_ab_m[0]**2+i_ab_m[1]**2)**0.5
 
 # R: observation covariance
-R = diag((i_noise+z_norm*.05)**2,(i_noise+z_norm*.05)**2) # Covariance of observation vector
+R = diag((i_noise)**2,(i_noise)**2) # Covariance of observation vector
 
 # y: innovation vector
 y = z-h

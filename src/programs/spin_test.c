@@ -56,7 +56,7 @@ void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample) {
     } else if (t < 11.5) {
         float thr = ((uint32_t)((t-1)*2))*0.025f;
         motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? 0.08f : thr);
-    } else {
+    } else if (t < 20.0) {
         float thr = ((uint32_t)((t-9.5)*2))*0.025f;
         motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? thr : -thr);
     }

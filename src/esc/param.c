@@ -62,6 +62,7 @@ static const struct param_info_s param_info_table[] = {
     {.name = "ESC_EKF_LOAD_T_PNSE",                      .default_val =    0.1, .min_val =    .001, .max_val = 1,       .type=PARAM_TYPE_FLOAT},
     {.name = "uavcan.node_id",                           .default_val =    0.0, .min_val =       0, .max_val = 127,     .type=PARAM_TYPE_INT},
     {.name = "uavcan.id-uavcan.equipment.esc-esc_index", .default_val =    0.0, .min_val =       0, .max_val = 32,      .type=PARAM_TYPE_INT},
+    {.name = "ESC_PWM_DEADTIME",                         .default_val =    0.0, .min_val =       0, .max_val = 1e-5f,   .type=PARAM_TYPE_FLOAT},
 };
 
 #define NUM_DEFINED_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))

@@ -53,6 +53,7 @@ static struct {
     float ekf_i_noise;
     float ekf_u_noise;
     float ekf_T_l_pnoise;
+    float pwm_deadtime;
 } params;
 
 static struct {
@@ -91,6 +92,9 @@ static volatile struct {
     float duty_alpha;
     float duty_beta;
     float omega;
+    float duty_bias_a;
+    float duty_bias_b;
+    float duty_bias_c;
 } phase_output[2];
 
 static struct curr_pid_param_s iq_pid_param;
@@ -107,9 +111,11 @@ static void retrieve_encoder_measurement(void);
 static void update_encoder_state(float dt);
 static void update_motor_state(float dt);
 static void transform_a_b_c_to_alpha_beta(float a, float b, float c, float* alpha, float* beta);
+static void transform_alpha_beta_to_a_b_c(float alpha, float beta, float* a, float* b, float* c);
 static void transform_d_q_to_alpha_beta(float theta, float d, float q, float* alpha, float* beta);
 static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, float* d, float* q);
 static void set_alpha_beta_output_duty(float duty_alpha, float duty_beta, float omega);
+static void set_alpha_beta_output_duty_with_duty_bias(float duty_alpha, float duty_beta, float omega, float duty_bias_a, float duty_bias_b, float duty_bias_c);
 static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC);
 static void init_ekf(float theta);
 static void update_ekf(float dt);
@@ -141,6 +147,7 @@ static void load_config(void)
     params.ekf_i_noise = *param_retrieve_by_name("ESC_EKF_CURR_M_NSE");
     params.ekf_u_noise = *param_retrieve_by_name("ESC_EKF_VOLT_NSE");
     params.ekf_T_l_pnoise = *param_retrieve_by_name("ESC_EKF_LOAD_T_PNSE");
+    params.pwm_deadtime = *param_retrieve_by_name("ESC_PWM_DEADTIME");
 
     float foc_bandwidth_rads = 2.0f*M_PI_F*params.foc_bandwidth_hz;
 
@@ -301,7 +308,7 @@ float motor_get_vbatt(void)
 
 static void run_foc(float dt)
 {
-    id_pid_param.dt = iq_pid_param.dt  = dt;
+    id_pid_param.dt = iq_pid_param.dt = dt;
     id_pid_param.dt = iq_pid_param.dt = dt;
 
     id_pid_param.i_meas = motor_state.i_d;
@@ -320,13 +327,26 @@ static void run_foc(float dt)
 
     curr_pid_run(&id_pid_param, &id_pid_state);
 
-    // limit iq such that driving id to zero always takes precedence
+    // Limit iq such that driving id to zero always takes precedence
     iq_pid_param.output_limit = sqrtf(MAX(SQ(id_pid_param.output_limit)-SQ(id_pid_state.output),0));
     curr_pid_run(&iq_pid_param, &iq_pid_state);
 
+    // Compute u_alpha, u_beta
     transform_d_q_to_alpha_beta(motor_state.elec_theta, id_pid_state.output, iq_pid_state.output, &u_alpha, &u_beta);
 
-    set_alpha_beta_output_duty(u_alpha/vbatt_m, u_beta/vbatt_m, motor_state.elec_omega);
+    // Compute dead-time compensation
+    const float v_comp = 2*params.pwm_deadtime/pwm_get_period();
+    float i_ref_alpha, i_ref_beta;
+    float i_ref_a, i_ref_b, i_ref_c;
+    float v_comp_a, v_comp_b, v_comp_c;
+    transform_d_q_to_alpha_beta(motor_state.elec_theta, id_pid_param.i_ref, id_pid_param.i_ref, &i_ref_alpha, &i_ref_beta);
+    transform_alpha_beta_to_a_b_c(i_ref_alpha, i_ref_beta, &i_ref_a, &i_ref_b, &i_ref_c);
+    v_comp_a = v_comp * SIGN(i_ref_a);
+    v_comp_b = v_comp * SIGN(i_ref_b);
+    v_comp_c = v_comp * SIGN(i_ref_c);
+
+    // Output to phases
+    set_alpha_beta_output_duty_with_duty_bias(u_alpha/vbatt_m, u_beta/vbatt_m, motor_state.elec_omega, v_comp_a, v_comp_b, v_comp_c);
 }
 
 static void run_encoder_calibration(void)
@@ -394,11 +414,11 @@ static void run_encoder_calibration(void)
 static void run_phase_voltage_test(void)
 {
     float u_alpha, u_beta;
-    float theta = wrap_2pi(micros()*1e-6f*1000.0f*2.0f*M_PI_F);
+    float theta = 0;//wrap_2pi(micros()*1e-6f*1000.0f*2.0f*M_PI_F);
     float sin_theta = sinf_fast(theta);
     float cos_theta = cosf_fast(theta);
 
-    float v = constrain_float(0.5f, 0.0f, vbatt_m);
+    float v = constrain_float(((millis()/5000)%10)*0.05f*sqrtf(2./3.), 0.0f, vbatt_m);
     u_alpha = v * cos_theta;
     u_beta = v * sin_theta;
 
@@ -470,6 +490,13 @@ static void transform_a_b_c_to_alpha_beta(float a, float b, float c, float* alph
     *beta = 0.707106781186547f*b - 0.707106781186547f*c;
 }
 
+static void transform_alpha_beta_to_a_b_c(float alpha, float beta, float* a, float* b, float* c)
+{
+    *a = alpha * 0.816496580927726f;
+    *b = -alpha*0.408248290463863f+beta*0.7071067811865475f;
+    *c = -alpha*0.408248290463863f-beta*0.7071067811865475f;
+}
+
 static void transform_d_q_to_alpha_beta(float theta, float d, float q, float* alpha, float* beta)
 {
     float sin_theta = sinf_fast(theta);
@@ -488,15 +515,23 @@ static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, fl
     *q = -alpha*sin_theta + beta*cos_theta;
 }
 
-static void set_alpha_beta_output_duty(float duty_alpha, float duty_beta, float omega)
+static void set_alpha_beta_output_duty_with_duty_bias(float duty_alpha, float duty_beta, float omega, float duty_bias_a, float duty_bias_b, float duty_bias_c)
 {
     uint8_t next_phase_output_idx = (phase_output_idx+1)%2;
     phase_output[next_phase_output_idx].t_us = csa_meas_t_us;
     phase_output[next_phase_output_idx].omega = omega;
     phase_output[next_phase_output_idx].duty_alpha = duty_alpha;
     phase_output[next_phase_output_idx].duty_beta = duty_beta;
+    phase_output[next_phase_output_idx].duty_bias_a = duty_bias_a;
+    phase_output[next_phase_output_idx].duty_bias_b = duty_bias_b;
+    phase_output[next_phase_output_idx].duty_bias_c = duty_bias_c;
     phase_output_idx = next_phase_output_idx;
     pwm_update();
+}
+
+static void set_alpha_beta_output_duty(float duty_alpha, float duty_beta, float omega)
+{
+    set_alpha_beta_output_duty_with_duty_bias(duty_alpha, duty_beta, omega, 0, 0, 0);
 }
 
 static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC)
@@ -526,16 +561,17 @@ static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC)
     // Per http://www.embedded.com/design/real-world-applications/4441150/2/Painless-MCU-implementation-of-space-vector-modulation-for-electric-motor-systems
     // Does not overmodulate, provided the input magnitude is <= 1.0/sqrt(2)
     float Vneutral;
-
-    (*phaseA) = alpha * sqrtf(2.0f/3.0f);
-    (*phaseB) = (-(alpha/2.0f)+(beta*sqrtf(3.0f)/2.0f)) * sqrtf(2.0f/3.0f);
-    (*phaseC) = (-(alpha/2.0f)-(beta*sqrtf(3.0f)/2.0f)) * sqrtf(2.0f/3.0f);
+    transform_alpha_beta_to_a_b_c(alpha, beta, phaseA, phaseB, phaseC);
 
     Vneutral = 0.5f * (MAX(MAX((*phaseA),(*phaseB)),(*phaseC)) + MIN(MIN((*phaseA),(*phaseB)),(*phaseC)));
 
     (*phaseA) += 0.5f-Vneutral;
     (*phaseB) += 0.5f-Vneutral;
     (*phaseC) += 0.5f-Vneutral;
+
+    (*phaseA) += phase_output[phase_output_idx].duty_bias_a;
+    (*phaseB) += phase_output[phase_output_idx].duty_bias_b;
+    (*phaseC) += phase_output[phase_output_idx].duty_bias_c;
 
     (*phaseA) = constrain_float(*phaseA, 0.0f, 1.0f);
     (*phaseB) = constrain_float(*phaseB, 0.0f, 1.0f);

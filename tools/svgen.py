@@ -1,12 +1,15 @@
 from math import *
 import matplotlib.pyplot as plt
 import numpy as np
-#from sympy import *
+from sympy import *
+
+import sys
 
 def svgen(alpha, beta, max_duty=1.):
     Va = alpha * sqrt(2./3.)
     Vb = (-(alpha/2.0)+(beta*sqrt(3.0)/2.0)) * sqrt(2./3.)
     Vc = (-(alpha/2.0)-(beta*sqrt(3.0)/2.0)) * sqrt(2./3.)
+    print Va, Vb, Vc
 
     Vneutral = 0.5 * (max(Va,Vb,Vc) + min(Va,Vb,Vc))
 
@@ -14,7 +17,13 @@ def svgen(alpha, beta, max_duty=1.):
     Vb += 0.5*max_duty-Vneutral
     Vc += 0.5*max_duty-Vneutral
 
+    print Va-Vb, Vb-Vc, Vc-Va
+
     return (min(max(Va,0.),max_duty), min(max(Vb,0.),max_duty), min(max(Vc,0.),max_duty), Vneutral)
+
+print svgen(1, 0.)
+
+sys.exit()
 
 times = np.linspace(0,6.28,1000)
 voltages = zip(*[svgen(sin(t) * sqrt(2./3.), sin(t+pi/2) * sqrt(2./3.),1.) for t in times])

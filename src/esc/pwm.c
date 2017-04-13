@@ -20,6 +20,7 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/nvic.h>
+#include <esc/serial.h>
 
 #define TIM_CCMR3(tim_base)          MMIO32((tim_base) + 0x54)
 #define TIM1_CCMR3                   TIM_CCMR3(TIM1)
@@ -48,7 +49,7 @@ void pwm_init(void)
     timer_enable_oc_output(TIM1, TIM_OC4);
     TIM1_CCER |= (1<<16); // CC5E
     timer_enable_break_main_output(TIM1);
-    timer_set_period(TIM1, 1000);
+    timer_set_period(TIM1, 2000);
     TIM1_CCR4 = TIM1_ARR;
     TIM1_CCR5 = 24;
 //     TIM1_CR2 |= 0b0111 << 20; // MMS2 OCREF4
@@ -85,4 +86,12 @@ void pwm_get_phase_duty(float* phaseA, float* phaseB, float* phaseC)
     *phaseA = ((float)(TIM1_ARR-TIM1_CCR1))/TIM1_ARR;
     *phaseB = ((float)(TIM1_ARR-TIM1_CCR2))/TIM1_ARR;
     *phaseC = ((float)(TIM1_ARR-TIM1_CCR3))/TIM1_ARR;
+}
+
+float pwm_get_freq(void) {
+    return rcc_apb1_frequency/TIM1_ARR;
+}
+
+float pwm_get_period(void) {
+    return 1/pwm_get_freq();
 }

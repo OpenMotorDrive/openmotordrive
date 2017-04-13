@@ -24,7 +24,7 @@
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/dma.h>
 
-#define SAMPLE_FREQ 18000.0f
+#define SAMPLE_FREQ 9000.0f
 #define SAMPLE_PERIOD (1.0f/SAMPLE_FREQ)
 #define NUM_CONVERSIONS 6UL
 

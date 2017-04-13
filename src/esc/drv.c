@@ -141,10 +141,10 @@ void drv_init(void)
 
     drv_write_register_bits(0x7,7,8,0b00); // 6-PWM mode
     drv_write_register_bits(0x9,7,7,0b1); // enable sense amplifier clamp (protects ADC pins on STM)
-    drv_write_register_bits(0x5,4,7,0b0110); // high-side gate driver peak sink current = 0.08A
-    drv_write_register_bits(0x5,0,3,0b0110); // high-side gate driver peak source current = 0.07A
-    drv_write_register_bits(0x6,4,7,0b0110); // low-side gate driver peak sink current = 0.08A
-    drv_write_register_bits(0x6,0,3,0b0110); // low-side gate driver peak source current = 0.07A
+    drv_write_register_bits(0x5,4,7,0b0111); // high-side gate driver peak sink current = 0.25A
+    drv_write_register_bits(0x5,0,3,0b0111); // high-side gate driver peak source current = 0.125A
+    drv_write_register_bits(0x6,4,7,0b0111); // low-side gate driver peak sink current = 0.25A
+    drv_write_register_bits(0x6,0,3,0b0111); // low-side gate driver peak source current = 0.125A
     drv_write_register_bits(0x7,4,6,0b000);   // Dead time 35ns
     drv_write_register_bits(0xA,0,5,0b000000); // all CS amplifier gains = 10
     drv_write_register_bits(0xA,6,7,0b00); // current shunt blanking time 00=0us 01=0.5us 10=2.5us 11=10us
