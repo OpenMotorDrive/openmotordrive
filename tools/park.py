@@ -14,14 +14,14 @@
 from sympy import *
 from sympy.printing.ccode import *
 
-class MyPrinter(CCodePrinter):
+class CCodePrinter_float(CCodePrinter):
     def __init__(self,settings={}):
         CCodePrinter.__init__(self, settings)
         self.known_functions = {
             "Abs": [(lambda x: not x.is_integer, "fabsf")],
             "gamma": "tgammaf",
-            "sin": "sinf",
-            "cos": "cosf",
+            "sin": "sinf_fast",
+            "cos": "cosf_fast",
             "tan": "tanf",
             "asin": "asinf",
             "acos": "acosf",
@@ -53,26 +53,32 @@ class MyPrinter(CCodePrinter):
         if expr.exp == 0.5:
             return 'sqrtf(%s)' % self._print(expr.base)
         elif expr.exp.is_integer and expr.exp <= 4:
-            return '*'.join([self._print(expr.base) for _ in range(expr.exp)])
+            return "(%s)" % ('*'.join(["(%s)" % (self._print(expr.base)) for _ in range(expr.exp)]),)
         else:
             return 'powf(%s, %s)' % (self._print(expr.base),
                                  self._print(expr.exp))
 
-def double2float(string):
-    import re
-    string = re.sub(r"[0-9]+\.[0-9]+", '\g<0>f', string)
-
-    return string
+    def _print_Rational(self, expr):
+        p, q = int(expr.p), int(expr.q)
+        return '%d.0/%d.0' % (p, q)
 
 
 
 d,q,o,a,b,c,alpha,beta,gamma,theta,max_duty,omega = symbols('d q o a b c alpha beta gamma elec_theta_m max_duty omega')
 
-T_abc_aby = sqrt(2./3.)*Matrix([[      S.One,      -S.Half,      -S.Half],
-                                [     S.Zero,  sqrt(3)/2, -sqrt(3)/2],
-                                [ 1/sqrt(2), 1/sqrt(2),  1/sqrt(2)]])
+T_abc_aby = Rational(2,3) * Matrix([[            1, -Rational(1,2), -Rational(1,2)],
+                                    [            0,      sqrt(3)/2,     -sqrt(3)/2],
+                                    [Rational(1,2),  Rational(1,2),  Rational(1,2)]])
 
-T_aby_abc = T_abc_aby.inv()
+T_aby_abc = Matrix([[             1,          0, 1],
+                    [-Rational(1,2),  sqrt(3)/2, 1],
+                    [-Rational(1,2), -sqrt(3)/2, 1]])
+
+#T_abc_aby = sqrt(2./3.)*Matrix([[      S.One,      -S.Half,      -S.Half],
+                                #[     S.Zero,  sqrt(3)/2, -sqrt(3)/2],
+                                #[ 1/sqrt(2), 1/sqrt(2),  1/sqrt(2)]])
+
+#T_aby_abc = T_abc_aby.inv()
 
 
 T_aby_dqo = Matrix([[ cos(theta), sin(theta), S.Zero],
@@ -87,15 +93,26 @@ abc_sym = Matrix([[a],[b],[c]])
 aby_sym = Matrix([[alpha],[beta],[gamma]])
 dqo_sym = Matrix([[d],[q],[o]])
 
-aby = simplify(T_abc_aby*abc_sym)
+aby = simplify(T_abc_aby*abc_sym).evalf()
 print "abc->aby"
-print double2float(MyPrinter().doprint(aby[0,0], 'alpha'))
-print double2float(MyPrinter().doprint(aby[1,0], 'beta'))
+print CCodePrinter_float().doprint(aby[0,0], 'alpha')
+print CCodePrinter_float().doprint(aby[1,0], 'beta')
 
-dqo = simplify(T_aby_dqo*aby_sym)
-print "aby->dqo"
-print double2float(MyPrinter().doprint(dqo[0,0], 'd'))
-print double2float(MyPrinter().doprint(dqo[1,0], 'q'))
+abc = simplify(T_aby_abc*aby_sym.subs(gamma, 0)).evalf()
+print "\naby->abc"
+print CCodePrinter_float().doprint(abc[0,0], 'a')
+print CCodePrinter_float().doprint(abc[1,0], 'b')
+print CCodePrinter_float().doprint(abc[2,0], 'c')
 
-delta_theta = Symbol('delta_theta')
-pprint(simplify((T_dqo_aby.subs(theta, theta+delta_theta) * T_aby_dqo * aby_sym).subs(theta, 0))[0:2,0])
+dqo = simplify(T_aby_dqo*aby_sym).evalf()
+print "\naby->dqo"
+print CCodePrinter_float().doprint(dqo[0,0], 'd')
+print CCodePrinter_float().doprint(dqo[1,0], 'q')
+
+aby = simplify(T_dqo_aby*dqo_sym).evalf()
+print "\ndqo->aby"
+print CCodePrinter_float().doprint(aby[0,0], 'alpha')
+print CCodePrinter_float().doprint(aby[1,0], 'beta')
+
+#delta_theta = Symbol('delta_theta')
+#pprint(simplify((T_dqo_aby.subs(theta, theta+delta_theta) * T_aby_dqo * aby_sym).subs(theta, 0))[0:2,0])

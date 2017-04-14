@@ -486,15 +486,15 @@ static void update_motor_state(float dt)
 
 static void transform_a_b_c_to_alpha_beta(float a, float b, float c, float* alpha, float* beta)
 {
-    *alpha = 0.816496580927726f*a - 0.408248290463863f*b - 0.408248290463863f*c;
-    *beta = 0.707106781186547f*b - 0.707106781186547f*c;
+    *alpha = 0.666666666666667*a - 0.333333333333333*b - 0.333333333333333*c;
+    *beta = 0.577350269189626*b - 0.577350269189626*c;
 }
 
 static void transform_alpha_beta_to_a_b_c(float alpha, float beta, float* a, float* b, float* c)
 {
-    *a = alpha * 0.816496580927726f;
-    *b = -alpha*0.408248290463863f+beta*0.7071067811865475f;
-    *c = -alpha*0.408248290463863f-beta*0.7071067811865475f;
+    *a = alpha;
+    *b = -0.5*alpha + 0.866025403784439*beta;
+    *c = -0.5*alpha - 0.866025403784439*beta;
 }
 
 static void transform_d_q_to_alpha_beta(float theta, float d, float q, float* alpha, float* beta)

@@ -26,13 +26,13 @@ theta = theta_e
                                             #[sin(theta_e), sin(theta_e-2*pi/3), sin(theta_e+2*pi/3)],
                                             #[1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]]).T
 
-T_abc_dqo = sqrt(Rational(2,3))*Matrix([[cos(theta_e), cos(theta_e-2*pi/3), cos(theta_e+2*pi/3)],
-                                        [-sin(theta_e), -sin(theta_e-2*pi/3), -sin(theta_e+2*pi/3)],
-                                        [1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]])
+T_abc_dqo = Rational(2,3)*Matrix([[cos(theta_e), cos(theta_e-2*pi/3), cos(theta_e+2*pi/3)],
+                                  [-sin(theta_e), -sin(theta_e-2*pi/3), -sin(theta_e+2*pi/3)],
+                                  [1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]])
 
-T_dqo_abc = sqrt(Rational(2,3))*Matrix([[cos(theta_e), cos(theta_e-2*pi/3), cos(theta_e+2*pi/3)],
-                                        [-sin(theta_e), -sin(theta_e-2*pi/3), -sin(theta_e+2*pi/3)],
-                                        [1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]]).T
+T_dqo_abc = Matrix([[cos(theta_e), cos(theta_e-2*pi/3), cos(theta_e+2*pi/3)],
+                    [-sin(theta_e), -sin(theta_e-2*pi/3), -sin(theta_e+2*pi/3)],
+                    [1/sqrt(2), 1/sqrt(2), 1/sqrt(2)]]).T
 
 I_abc = Matrix(dynamicsymbols('I_(a:c)'))
 lambda_m = Symbol('lambda_m')
@@ -90,7 +90,7 @@ I_dqo_dot = Matrix([I_dqo_dot_soln[k] for k in I_dqo_dot_sym])
 
 # solve for torque
 lambda_dqo = simplify(T_abc_dqo * lambda_abc)
-P_o = -omega_e*lambda_dqo[1]*I_dqo_sym[0] + omega_e*lambda_dqo[0]*I_dqo_sym[1]
+P_o = Rational(3,2) * (-omega_e*lambda_dqo[1]*I_dqo_sym[0] + omega_e*lambda_dqo[0]*I_dqo_sym[1])
 T = N_P * P_o/omega_e
 T = simplify(T.subs([(L_x, (L_dqo_sym[1]-L_dqo_sym[0])/2), (theta_e_dot, omega_e)]))
 print "\n################## V_dqo ##################"

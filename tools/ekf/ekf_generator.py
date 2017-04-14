@@ -63,11 +63,11 @@ u_dq = R_ab_dq(theta_e_est) * u_ab
 u_d = u_dq[0]
 u_q = u_dq[1]
 
-T_output = N_P * (3*(L_d-L_q)*i_d_est + sqrt(6)*lambda_r) * i_q_est / 2
+T_output = Rational(3,2) * N_P * (lambda_r*i_q_est + (L_d-L_q)*i_q_est*i_d_est)
 omega_dot = (T_output - T_l_est)/J
 
 i_d_dot = (L_q*omega_e_est*i_q_est - R_s*i_d_est + u_d)/L_d
-i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - sqrt(6)/2*lambda_r*omega_e_est + u_q)/L_q
+i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - lambda_r*omega_e_est + u_q)/L_q
 
 x_dot = Matrix([
     omega_dot,
