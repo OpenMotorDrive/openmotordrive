@@ -1,0 +1,12 @@
+u_noise         1
+L_q 2.92728e-05
+lambda_r 0.00275428
+N_P         7
+J 5.02634e-05
+R_s 0.0701132
+T_l_pnoise         1
+i_noise      0.01
+encoder_delay 6.7383e-05
+L_d 2.27821e-05
+omega_pnoise   20624.9
+encoder_theta_e_bias  -0.30409

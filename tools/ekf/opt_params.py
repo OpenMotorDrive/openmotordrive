@@ -15,7 +15,7 @@ def objective_func(x):
     for i in range(len(x)):
         params[opt_param_names[i]] = x[i]
 
-    params['L_d'] = params['L_q']*.682
+    #params['L_d'] = params['L_q']*.682
 
     print params
 
@@ -37,7 +37,7 @@ def objective_func(x):
     if objective=="RMS_THETA":
         obj = math.sqrt(output_data["theta_ISE"])
     elif objective=="CURRENT_CONSISTENCY":
-        obj = math.sqrt(output_data["int_NIS"])*math.sqrt(output_data["var_int"])*math.sqrt(output_data["theta_ISE"])
+        obj = math.sqrt(output_data["int_NIS"])*math.sqrt(output_data["var_int"])*math.sqrt(output_data["theta_ISE"])*math.sqrt(output_data["load_sq_int"])
 
     print "obj: %f" % (obj,)
 
@@ -67,21 +67,16 @@ param_bounds = {
     "L_q": (1e-6, 1e-3),
     "lambda_r": (0,10000),
     "J": (0.000001, 0.001),
-    "i_noise": (0.001, 0.1),
+    "i_noise": (0.0001, 0.1),
     "u_noise": (0, 20),
     "T_l_pnoise": (0, 100),
-    "omega_pnoise": (0, 1e6),
-    "theta_pnoise": (0, 1e6),
     "encoder_theta_e_bias": (-math.pi, math.pi),
-    "i_delay": (-1e-4,1e-4),
     "encoder_delay": (-1e-3,1e-3),
-    "i0": (0,10000),
-    "a": (0, 10000),
-    "b": (0, 10000),
+    "omega_pnoise":(0,1e6)
     }
 
-opt_param_names = ["J", "L_q", "i_noise", "lambda_r", "T_l_pnoise", "encoder_theta_e_bias", "encoder_delay"]
-objective="RMS_THETA"
+opt_param_names = ["J", "L_q", "L_d", "R_s", "lambda_r", "encoder_theta_e_bias", "encoder_delay", "omega_pnoise", "i_noise"]
+objective="CURRENT_CONSISTENCY"
 opt_params = [init_params[x] for x in opt_param_names]
 opt_param_bounds = [param_bounds[x] for x in opt_param_names]
 res = minimize(objective_func, opt_params, bounds=opt_param_bounds, method='Nelder-Mead', options={'maxiter':1000000,'maxfev':1000000})
