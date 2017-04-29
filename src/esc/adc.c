@@ -26,12 +26,13 @@
 
 #define SAMPLE_FREQ 9000.0f
 #define SAMPLE_PERIOD (1.0f/SAMPLE_FREQ)
-#define NUM_CONVERSIONS 6UL
+#define NUM_CONVERSIONS 4UL
 
 static volatile uint16_t adcbuf[2][NUM_CONVERSIONS];
 static volatile uint32_t errcnt = 0;
 static volatile uint8_t sample_idx = 0;
 static volatile struct adc_sample_s sample[2];
+static ISR_ptr new_sample_isr;
 
 void adc_init(void)
 {
@@ -54,8 +55,8 @@ void adc_init(void)
 
     // enable discontinuous mode
     ADC_CFGR1(ADC1) |= 1UL<<16;
-    // discontinuous group size 3
-    ADC_CFGR1(ADC1) |= (3UL-1)<<17;
+    // discontinuous group size 4
+    ADC_CFGR1(ADC1) |= (4UL-1)<<17;
 
     // right-aligned data
     ADC_CFGR1(ADC1) &= ~(1UL<<5);
@@ -73,15 +74,12 @@ void adc_init(void)
     ADC_SQR1(ADC1) |= (NUM_CONVERSIONS-1)<<0;
 
     // discontinuous group 1
-    ADC_SQR1(ADC1) |= 4UL<<6; // Vsense
-    ADC_SQR1(ADC1) |= 4UL<<12; // Vsense
-    ADC_SQR1(ADC1) |= 4UL<<18; // Vsense
+    ADC_SQR1(ADC1) |= 1UL<<6; // phase current A
+    ADC_SQR1(ADC1) |= 2UL<<12; // phase current B
+    ADC_SQR1(ADC1) |= 3UL<<18; // phase current C
 
     // discontinuous group 2
-    ADC_SQR1(ADC1) |= 1UL<<24; // phase current A
-    ADC_SQR2(ADC1) |= 2UL<<0; // phase current B
-    ADC_SQR2(ADC1) |= 3UL<<6; // phase current C
-
+    ADC_SQR1(ADC1) |= 4UL<<24; // Vbus
 
     // set ADVREGEN to 00 (intermediate)
     ADC_CR(ADC1) &= ~(0b11UL<<28);
@@ -149,12 +147,10 @@ static void write_sample_buffer(volatile uint16_t* in_buf)
 
     sample[write_idx].seq = sample[sample_idx].seq+1;
     sample[write_idx].t_us = micros();
-    sample[write_idx].csa_v[0] = in_buf[3]*3.3f/4096.0f;
-    sample[write_idx].csa_v[1] = in_buf[4]*3.3f/4096.0f;
-    sample[write_idx].csa_v[2] = in_buf[5]*3.3f/4096.0f;
-    sample[write_idx].vsense_v = 0.0f;
-    for (i=0; i<3; i++) sample[write_idx].vsense_v += in_buf[i];
-    sample[write_idx].vsense_v *= 3.3f/4096.0f/3.0f;
+    sample[write_idx].csa_v[0] = in_buf[0]*3.3f/4096.0f;
+    sample[write_idx].csa_v[1] = in_buf[1]*3.3f/4096.0f;
+    sample[write_idx].csa_v[2] = in_buf[2]*3.3f/4096.0f;
+    sample[write_idx].vsense_v = in_buf[3]*3.3f/4096.0f;
 
     sample_idx = write_idx;
 }
@@ -171,6 +167,10 @@ void dma1_channel1_isr(void)
         write_sample_buffer(adcbuf[1]);
         DMA_IFCR(DMA1) |= 1UL<<1; // clear interrupt flag
     }
+
+    if (new_sample_isr) {
+        new_sample_isr();
+    }
 }
 
 void adc_wait_for_sample(void)
@@ -179,9 +179,9 @@ void adc_wait_for_sample(void)
     while(sample[sample_idx].seq==seq_prev);
 }
 
-void adc_get_sample(struct adc_sample_s* ret)
+struct adc_sample_s* adc_get_sample(void)
 {
-    memcpy(ret, (struct adc_sample_s*)&sample[sample_idx], sizeof(struct adc_sample_s));
+    return &sample[sample_idx];
 }
 
 uint32_t adc_get_errcnt(void)
@@ -197,4 +197,9 @@ float adc_get_smp_freq(void)
 float adc_get_smp_period(void)
 {
     return SAMPLE_PERIOD;
+}
+
+void adc_set_new_sample_isr(ISR_ptr cb)
+{
+    new_sample_isr = cb;
 }

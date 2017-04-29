@@ -17,6 +17,8 @@
 
 #include <stdint.h>
 
+typedef void (*ISR_ptr)(void);
+
 struct adc_sample_s {
     uint8_t seq;
     uint32_t t_us;
@@ -25,8 +27,9 @@ struct adc_sample_s {
 };
 
 void adc_init(void);
-void adc_get_sample(struct adc_sample_s* ret);
+struct adc_sample_s* adc_get_sample(void);
 void adc_wait_for_sample(void);
+void adc_set_new_sample_isr(ISR_ptr cb);
 uint32_t adc_get_errcnt(void);
 float adc_get_smp_freq(void);
 float adc_get_smp_period(void);

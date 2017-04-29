@@ -89,12 +89,9 @@ static struct {
 static volatile uint8_t phase_output_idx = 0;
 static volatile struct {
     uint32_t t_us;
-    float duty_alpha;
-    float duty_beta;
+    float u_alpha;
+    float u_beta;
     float omega;
-    float duty_bias_a;
-    float duty_bias_b;
-    float duty_bias_c;
 } phase_output[2];
 
 static struct curr_pid_param_s iq_pid_param;
@@ -114,8 +111,7 @@ static void transform_a_b_c_to_alpha_beta(float a, float b, float c, float* alph
 static void transform_alpha_beta_to_a_b_c(float alpha, float beta, float* a, float* b, float* c);
 static void transform_d_q_to_alpha_beta(float theta, float d, float q, float* alpha, float* beta);
 static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, float* d, float* q);
-static void set_alpha_beta_output_duty(float duty_alpha, float duty_beta, float omega);
-static void set_alpha_beta_output_duty_with_duty_bias(float duty_alpha, float duty_beta, float omega, float duty_bias_a, float duty_bias_b, float duty_bias_c);
+static void set_alpha_beta_output_voltages(float duty_alpha, float duty_beta, float omega);
 static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC);
 static void init_ekf(float theta);
 static void update_ekf(float dt);
@@ -198,7 +194,7 @@ void motor_update(float dt, struct adc_sample_s* adc_sample)
 
     switch (motor_mode) {
         case MOTOR_MODE_DISABLED:
-            set_alpha_beta_output_duty(0, 0, 0);
+            set_alpha_beta_output_voltages(0, 0, 0);
             break;
 
         case MOTOR_MODE_FOC_DUTY: {
@@ -239,7 +235,7 @@ void motor_set_mode(enum motor_mode_t new_mode)
 
     load_config();
 
-    set_alpha_beta_output_duty(0, 0, 0);
+    set_alpha_beta_output_voltages(0, 0, 0);
 
     if (new_mode == MOTOR_MODE_DISABLED) {
         drv_6_pwm_mode();
@@ -334,19 +330,8 @@ static void run_foc(float dt)
     // Compute u_alpha, u_beta
     transform_d_q_to_alpha_beta(motor_state.elec_theta, id_pid_state.output, iq_pid_state.output, &u_alpha, &u_beta);
 
-    // Compute dead-time compensation
-    const float v_comp = 2*params.pwm_deadtime/pwm_get_period();
-    float i_ref_alpha, i_ref_beta;
-    float i_ref_a, i_ref_b, i_ref_c;
-    float v_comp_a, v_comp_b, v_comp_c;
-    transform_d_q_to_alpha_beta(motor_state.elec_theta, id_pid_param.i_ref, id_pid_param.i_ref, &i_ref_alpha, &i_ref_beta);
-    transform_alpha_beta_to_a_b_c(i_ref_alpha, i_ref_beta, &i_ref_a, &i_ref_b, &i_ref_c);
-    v_comp_a = v_comp * SIGN(i_ref_a);
-    v_comp_b = v_comp * SIGN(i_ref_b);
-    v_comp_c = v_comp * SIGN(i_ref_c);
-
     // Output to phases
-    set_alpha_beta_output_duty_with_duty_bias(u_alpha/vbatt_m, u_beta/vbatt_m, motor_state.elec_omega, v_comp_a, v_comp_b, v_comp_c);
+    set_alpha_beta_output_voltages(u_alpha, u_beta, motor_state.elec_omega);
 }
 
 static void run_encoder_calibration(void)
@@ -408,21 +393,21 @@ static void run_encoder_calibration(void)
     u_alpha = v * cos_theta;
     u_beta = v * sin_theta;
 
-    set_alpha_beta_output_duty(u_alpha/vbatt_m, u_beta/vbatt_m, 0);
+    set_alpha_beta_output_voltages(u_alpha, u_beta, 0);
 }
 
 static void run_phase_voltage_test(void)
 {
     float u_alpha, u_beta;
-    float theta = 0;//wrap_2pi(micros()*1e-6f*1000.0f*2.0f*M_PI_F);
+    float theta = wrap_2pi(micros()*1e-6f*2.0f*M_PI_F);
     float sin_theta = sinf_fast(theta);
     float cos_theta = cosf_fast(theta);
 
-    float v = constrain_float(((millis()/5000)%10)*0.05f*sqrtf(2./3.), 0.0f, vbatt_m);
+    float v = constrain_float(1.0f, 0.0f, vbatt_m);
     u_alpha = v * cos_theta;
     u_beta = v * sin_theta;
 
-    set_alpha_beta_output_duty(u_alpha/vbatt_m, u_beta/vbatt_m, 0);
+    set_alpha_beta_output_voltages(u_alpha, u_beta, 0);
 }
 
 static void process_adc_measurements(struct adc_sample_s* adc_sample)
@@ -515,23 +500,16 @@ static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, fl
     *q = -alpha*sin_theta + beta*cos_theta;
 }
 
-static void set_alpha_beta_output_duty_with_duty_bias(float duty_alpha, float duty_beta, float omega, float duty_bias_a, float duty_bias_b, float duty_bias_c)
+static void set_alpha_beta_output_voltages(float u_alpha, float u_beta, float omega)
 {
+
     uint8_t next_phase_output_idx = (phase_output_idx+1)%2;
     phase_output[next_phase_output_idx].t_us = csa_meas_t_us;
     phase_output[next_phase_output_idx].omega = omega;
-    phase_output[next_phase_output_idx].duty_alpha = duty_alpha;
-    phase_output[next_phase_output_idx].duty_beta = duty_beta;
-    phase_output[next_phase_output_idx].duty_bias_a = duty_bias_a;
-    phase_output[next_phase_output_idx].duty_bias_b = duty_bias_b;
-    phase_output[next_phase_output_idx].duty_bias_c = duty_bias_c;
+    phase_output[next_phase_output_idx].u_alpha = u_alpha;
+    phase_output[next_phase_output_idx].u_beta = u_beta;
     phase_output_idx = next_phase_output_idx;
     pwm_update();
-}
-
-static void set_alpha_beta_output_duty(float duty_alpha, float duty_beta, float omega)
-{
-    set_alpha_beta_output_duty_with_duty_bias(duty_alpha, duty_beta, omega, 0, 0, 0);
 }
 
 static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC)
@@ -555,7 +533,7 @@ static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC)
     }
 
     float alpha, beta;
-    transform_d_q_to_alpha_beta(delta_theta, phase_output[phase_output_idx].duty_alpha, phase_output[phase_output_idx].duty_beta, &alpha, &beta);
+    transform_d_q_to_alpha_beta(delta_theta, phase_output[phase_output_idx].u_alpha, phase_output[phase_output_idx].u_beta, &alpha, &beta);
 
     // Space-vector generator
     // Per http://www.embedded.com/design/real-world-applications/4441150/2/Painless-MCU-implementation-of-space-vector-modulation-for-electric-motor-systems
@@ -563,19 +541,19 @@ static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC)
     float Vneutral;
     transform_alpha_beta_to_a_b_c(alpha, beta, phaseA, phaseB, phaseC);
 
+    const float deadtime_correction = params.pwm_deadtime/(3*pwm_get_period());
+    *phaseA += (2*SIGN(motor_state.i_a)-SIGN(motor_state.i_b)-SIGN(motor_state.i_c))*deadtime_correction;
+    *phaseB += (2*SIGN(motor_state.i_b)-SIGN(motor_state.i_a)-SIGN(motor_state.i_c))*deadtime_correction;
+    *phaseC += (2*SIGN(motor_state.i_c)-SIGN(motor_state.i_a)-SIGN(motor_state.i_b))*deadtime_correction;
+
     Vneutral = 0.5f * (MAX(MAX((*phaseA),(*phaseB)),(*phaseC)) + MIN(MIN((*phaseA),(*phaseB)),(*phaseC)));
+    *phaseA += 0.5f-Vneutral + SIGN(motor_state.i_a)*deadtime_correction;
+    *phaseB += 0.5f-Vneutral + SIGN(motor_state.i_b)*deadtime_correction;
+    *phaseC += 0.5f-Vneutral + SIGN(motor_state.i_c)*deadtime_correction;
 
-    (*phaseA) += 0.5f-Vneutral;
-    (*phaseB) += 0.5f-Vneutral;
-    (*phaseC) += 0.5f-Vneutral;
-
-    (*phaseA) += phase_output[phase_output_idx].duty_bias_a;
-    (*phaseB) += phase_output[phase_output_idx].duty_bias_b;
-    (*phaseC) += phase_output[phase_output_idx].duty_bias_c;
-
-    (*phaseA) = constrain_float(*phaseA, 0.0f, 1.0f);
-    (*phaseB) = constrain_float(*phaseB, 0.0f, 1.0f);
-    (*phaseC) = constrain_float(*phaseC, 0.0f, 1.0f);
+    *phaseA = constrain_float(*phaseA, 0.0f, 1.0f);
+    *phaseB = constrain_float(*phaseB, 0.0f, 1.0f);
+    *phaseC = constrain_float(*phaseC, 0.0f, 1.0f);
 }
 
 static void init_ekf(float theta)
@@ -611,8 +589,8 @@ static void init_ekf(float theta)
 
 static void update_ekf(float dt)
 {
-    float u_alpha = phase_output[(phase_output_idx+1)%2].duty_alpha * vbatt_m;
-    float u_beta = phase_output[(phase_output_idx+1)%2].duty_beta * vbatt_m;
+    float u_alpha = phase_output[(phase_output_idx+1)%2].u_alpha;
+    float u_beta = phase_output[(phase_output_idx+1)%2].u_beta;
 
     uint8_t next_ekf_idx = (ekf_idx+1)%2;
     float* state = ekf_state[ekf_idx].x;
@@ -725,14 +703,14 @@ static void update_ekf(float dt)
 }
 
 void motor_print_data(float dt) {
-    uint8_t slip_msg[64];
+    uint8_t slip_msg[80];
     uint8_t slip_msg_len = 0;
     uint8_t i;
     uint32_t tnow_us = micros();
     float omega_e = encoder_state.mech_omega_est*params.mot_n_poles;
 
-    float prev_u_alpha = phase_output[(phase_output_idx+1)%2].duty_alpha * vbatt_m;
-    float prev_u_beta = phase_output[(phase_output_idx+1)%2].duty_beta * vbatt_m;
+    float prev_u_alpha = phase_output[(phase_output_idx+1)%2].u_alpha;
+    float prev_u_beta = phase_output[(phase_output_idx+1)%2].u_beta;
 
     for (i=0; i<sizeof(uint32_t); i++) {
         slip_encode_and_append(((uint8_t*)&tnow_us)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));
@@ -768,6 +746,18 @@ void motor_print_data(float dt) {
 
     for (i=0; i<sizeof(float); i++) {
         slip_encode_and_append(((uint8_t*)&encoder_state.mech_theta)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));
+    }
+
+    for (i=0; i<sizeof(float); i++) {
+        slip_encode_and_append(((uint8_t*)&motor_state.i_a)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));
+    }
+
+    for (i=0; i<sizeof(float); i++) {
+        slip_encode_and_append(((uint8_t*)&motor_state.i_b)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));
+    }
+
+    for (i=0; i<sizeof(float); i++) {
+        slip_encode_and_append(((uint8_t*)&motor_state.i_c)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));
     }
 
     slip_msg[slip_msg_len++] = SLIP_END;

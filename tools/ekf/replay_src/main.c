@@ -23,6 +23,12 @@ static float T_l_pnoise;
 static float encoder_theta_e_bias;
 static float encoder_delay;
 static float omega_pnoise;
+static float param1;
+static float param2;
+static float u_d;
+static float u_ce;
+static float u_dc;
+static float t_dead_ratio;
 
 static const struct {
     const char* name;
@@ -40,6 +46,12 @@ static const struct {
     {"encoder_theta_e_bias", &encoder_theta_e_bias},
     {"encoder_delay", &encoder_delay},
     {"omega_pnoise", &omega_pnoise},
+    {"param1", &param1},
+    {"param2", &param2},
+    {"u_d", &u_d},
+    {"u_ce", &u_ce},
+    {"u_dc", &u_dc},
+    {"t_dead_ratio", &t_dead_ratio},
 };
 
 #define N_PARAMS (sizeof(param_info)/sizeof(param_info[0]))
@@ -100,6 +112,9 @@ struct packet_s {
     float u_alpha;
     float u_beta;
     float encoder_theta_m;
+    float i_a;
+    float i_b;
+    float i_c;
 };
 
 static long double theta_e_err_abs_sum = 0;
@@ -109,6 +124,7 @@ static long double NIS_sum = 0;
 static long double variance_sum = 0;
 static long double dt_sum = 0;
 static long double load_torque_sq_sum = 0;
+static long double curr_err_sq_sum = 0;
 
 static FTYPE prev_u_alpha = 0, prev_u_beta = 0;
 
@@ -119,20 +135,24 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     }
     struct packet_s* pkt = (struct packet_s*)buf;
 
-    pkt->encoder_theta_e = wrap_2pi(pkt->encoder_theta_e-encoder_theta_e_bias-pkt->encoder_omega_e*encoder_delay);
+    pkt->encoder_theta_e = 0;//wrap_2pi(pkt->encoder_theta_e-encoder_theta_e_bias-pkt->encoder_omega_e*encoder_delay);
+
     if (!ekf_initialized) {
         ekf_init(pkt->encoder_theta_e);
         ekf_initialized = true;
     } else {
+        FTYPE* x = ekf_state[ekf_idx].x;
+        FTYPE* P = ekf_state[ekf_idx].P;
 //         ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
 //         memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
 
-        ekf_predict(pkt->dt, pkt->u_alpha, pkt->u_beta);
-        ekf_update(pkt->i_alpha_m, pkt->i_beta_m);
+        float u_alpha, u_beta;
+        ekf_predict(pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
+//         ekf_update(pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
 
-//         ekf_state[ekf_idx].x[0] = pkt->encoder_omega_e/7;
-//         ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
-//         memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
+        ekf_state[ekf_idx].x[0] = 2*M_PI_F/7;//pkt->encoder_omega_e/7;
+        ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
+        memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
 
     }
 
@@ -151,23 +171,20 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     float omega_e_est = x[0]*N_P;
     float omega_e_err = pkt->encoder_omega_e-omega_e_est;
 
-
-
-
-//     if (pkt->tnow_us > 1e6) {
-        load_torque_sq_sum += SQ(x[4]);
-        theta_e_err_abs_sum += fabsf(theta_e_err);
-        theta_e_err_sq_sum += SQ(theta_e_err);
-        curr_innov_sq_sum += SQ(innov[0])+SQ(innov[1]);
-        NIS_sum += NIS;
+    load_torque_sq_sum += SQ(x[4]);
+    theta_e_err_abs_sum += fabsf(theta_e_err);
+    theta_e_err_sq_sum += SQ(theta_e_err);
+    curr_innov_sq_sum += SQ(innov[0])+SQ(innov[1]);
+    curr_err_sq_sum += SQ(i_d_m-x[2])+SQ(i_q_m-x[3]);
+    NIS_sum += NIS;
 //         variance_sum += P[0];
 //         variance_sum += P[5];
-        variance_sum += P[9]+P[12];
+    variance_sum += P[9]+P[12];
 //         variance_sum += P[14];
-        dt_sum += pkt->dt;
-//     }
+    dt_sum += pkt->dt;
+
 #ifndef NO_BULK_DATA
-    fprintf(out_file, "{\"t_us\":%u, \"dt\":%9g, \"encoder_theta_e\":%9g, \"encoder_omega_e\":%9g, \"i_alpha_m\":%9g, \"i_beta_m\":%9g, \"u_alpha\":%9g, \"u_beta\":%9g, \"x\":[%9g, %9g, %9g, %9g, %9g], \"P\": [%9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g], \"theta_e_err\":%9g, \"omega_e_est\":%9g, \"omega_e_err\":%9g, \"i_d_m\": %9g, \"i_q_m\": %9g, \"NIS\": %9g}", pkt->tnow_us, pkt->dt, pkt->encoder_theta_e, pkt->encoder_omega_e, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta, x[0], x[1], x[2], x[3], x[4], P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7], P[8], P[9], P[10], P[11], P[12], P[13], P[14], theta_e_err, omega_e_est, omega_e_err, i_d_m, i_q_m, NIS);
+    fprintf(out_file, "{\"t_us\":%u, \"dt\":%9g, \"encoder_theta_e\":%9g, \"encoder_omega_e\":%9g, \"i_alpha_m\":%9g, \"i_beta_m\":%9g, \"u_alpha\":%9g, \"u_beta\":%9g, \"x\":[%9g, %9g, %9g, %9g, %9g], \"P\": [%9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g], \"theta_e_err\":%9g, \"omega_e_est\":%9g, \"omega_e_err\":%9g, \"i_d_m\": %9g, \"i_q_m\": %9g, \"NIS\": %9g, \"u_d\": %9g, \"u_q\": %9g}", pkt->tnow_us, pkt->dt, pkt->encoder_theta_e, pkt->encoder_omega_e, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta, x[0], x[1], x[2], x[3], x[4], P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7], P[8], P[9], P[10], P[11], P[12], P[13], P[14], theta_e_err, omega_e_est, omega_e_err, i_d_m, i_q_m, NIS, u_d, u_q);
 #endif
 }
 
@@ -240,6 +257,7 @@ int main(int argc, char **argv) {
     double int_NIS = NIS_sum/dt_sum;
     double var_int = variance_sum/dt_sum;
     double load_sq_int = load_torque_sq_sum/dt_sum;
+    double curr_err_sq_int = curr_err_sq_sum/dt_sum;
     if (isnan(ISE)) {
         ISE = DBL_MAX;
     }
@@ -252,6 +270,9 @@ int main(int argc, char **argv) {
     if (isnan(load_sq_int)) {
         load_sq_int = DBL_MAX;
     }
+    if (isnan(curr_err_sq_int)) {
+        curr_err_sq_int = DBL_MAX;
+    }
 
     fprintf(out_file, "],\n");
 //     fprintf(out_file, "\"theta_IAE\": %9g,\n", (double)(theta_e_err_abs_sum/dt_sum));
@@ -259,7 +280,8 @@ int main(int argc, char **argv) {
     fprintf(out_file, "\"int_NIS\": %9g,\n", int_NIS);
     fprintf(out_file, "\"theta_ISE\": %9g,\n", ISE);
     fprintf(out_file, "\"var_int\": %9g,\n", var_int);
-    fprintf(out_file, "\"load_sq_int\": %9g\n", load_sq_int);
+    fprintf(out_file, "\"load_sq_int\": %9g,\n", load_sq_int);
+    fprintf(out_file, "\"curr_err_sq_int\": %9g\n", curr_err_sq_int);
     fprintf(out_file, "}\n");
 
     printf("dt_sum %9g\n", (double)dt_sum);
@@ -268,6 +290,7 @@ int main(int argc, char **argv) {
 //     printf("IAE %9g\n", theta_e_err_abs_sum/dt_sum);
     printf("NIS_sum/dt_sum %9g\n", int_NIS);
     printf("load_sq_int %9g\n", load_sq_int);
+    printf("curr_err_sq_int %9g\n", curr_err_sq_int);
 //     printf("curr_innov_sq_sum/dt_sum %9g\n", curr_innov_sq_sum/dt_sum);
 
     fclose(config_file);

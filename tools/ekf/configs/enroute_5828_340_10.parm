@@ -2,9 +2,9 @@ u_noise         1
 L_q 3.85826e-05
 lambda_r 0.00271999
 N_P         7
-J 4.88121e-05
+J 4.88121e-04
 R_s 0.0716668
-T_l_pnoise         1
+T_l_pnoise         5
 i_noise 0.0131541
 encoder_delay -4.18439e-05
 L_d 2.78585e-05

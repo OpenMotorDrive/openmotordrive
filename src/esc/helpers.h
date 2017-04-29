@@ -26,7 +26,7 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
-#define SIGN(x) ( x>0 ? 1 : (x<0 ? -1 : 0) )
+#define SIGN(x) ( x>=0 ? 1 : -1 )
 
 #define UNUSED(x) ((void)x)
 

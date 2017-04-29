@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import *
 
+from scipy.signal import welch
+
 with open(sys.argv[1], 'rb') as jsonfile:
     jsonobj = json.load(jsonfile)
     data = jsonobj['data']
@@ -20,6 +22,8 @@ with open(sys.argv[1], 'rb') as jsonfile:
     i_q_m = np.array([x['i_q_m'] for x in data])
     u_alpha = np.array([x['u_alpha'] for x in data])
     u_beta = np.array([x['u_beta'] for x in data])
+    u_d = np.array([x['u_d'] for x in data])
+    u_q = np.array([x['u_q'] for x in data])
     state = np.array([x['x'] for x in data])
     cov = np.array([x['P'] for x in data])
     theta_e_est = state[:,1]
@@ -63,18 +67,21 @@ with open(sys.argv[1], 'rb') as jsonfile:
     plt.fill_between(t,omega_e_est_max,omega_e_est_min,facecolor='b',alpha=.25)
     plt.plot(t, omega_e_est, color='b')
     plt.plot(t, encoder_omega_e, color='g')
+    plt.plot(t, omega_e_est-np.roll(omega_e_est,1), color='y')
     plt.subplot(4,2,3,sharex=ax1)
     plt.title('d-axis current')
     plt.fill_between(t,i_d_est_max,i_d_est_min,facecolor='b',alpha=.25)
     plt.plot(t, i_d_est, color='b')
     plt.plot(t, i_d_m, color='g')
+    plt.plot(t, u_d, color='y')
     plt.subplot(4,2,4,sharex=ax1)
     plt.title('q-axis current')
     plt.fill_between(t,i_q_est_max,i_q_est_min,facecolor='b',alpha=.25)
     plt.plot(t, i_q_est, color='b')
     plt.plot(t, i_q_m, color='g')
+    plt.plot(t, u_q, color='y')
     plt.subplot(4,2,5,sharex=ax1)
-    plt.title('load torque')
+    plt.title('abc current')
     plt.fill_between(t,T_l_est_max,T_l_est_min,facecolor='b',alpha=.25)
     plt.plot(t, T_l_est, color='b')
     plt.subplot(4,2,6,sharex=ax1)

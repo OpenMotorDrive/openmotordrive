@@ -66,6 +66,36 @@ float cosf_fast(float x)
     return sinf_fast(x+M_PI_F/2.0f);
 }
 
+static void transform_a_b_c_to_alpha_beta(float a, float b, float c, float* alpha, float* beta)
+{
+    *alpha = 0.666666666666667*a - 0.333333333333333*b - 0.333333333333333*c;
+    *beta = 0.577350269189626*b - 0.577350269189626*c;
+}
+
+static void transform_alpha_beta_to_a_b_c(float alpha, float beta, float* a, float* b, float* c)
+{
+    *a = alpha;
+    *b = -0.5*alpha + 0.866025403784439*beta;
+    *c = -0.5*alpha - 0.866025403784439*beta;
+}
+
+static void transform_d_q_to_alpha_beta(float theta, float d, float q, float* alpha, float* beta)
+{
+    float sin_theta = sinf_fast(theta);
+    float cos_theta = cosf_fast(theta);
+
+    *alpha = d*cos_theta - q*sin_theta;
+    *beta = d*sin_theta + q*cos_theta;
+}
+
+static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, float* d, float* q)
+{
+    float sin_theta = sinf_fast(theta);
+    float cos_theta = cosf_fast(theta);
+
+    *d = alpha*cos_theta + beta*sin_theta;
+    *q = -alpha*sin_theta + beta*cos_theta;
+}
 
 // FNV-1a implementation
 #define FNV_1_OFFSET_BASIS_64 14695981039346656037UL

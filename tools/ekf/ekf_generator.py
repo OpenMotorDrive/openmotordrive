@@ -15,6 +15,33 @@ import sys
 # "Dynamic Model of PM Synchronous Motors," Ohm, 2000
 #     http://www.drivetechinc.com/articles/IM97PM_Rev1forPDF.pdf
 
+def rk(a,b,c,x_0,x_dot,dt):
+    N = a.rows
+    assert a.cols == N and len(b) == N and len(c) == N
+
+    k = []
+
+    for i in range(N):
+        x_n = x_0
+        for j in range(1,i):
+            x_n += dt*a[i,j]*k[j]
+        k.append(x_dot.xreplace(dict(zip(x_0, x_n))))
+
+    x_n = x_0
+    for i in range(N):
+        x_n += dt*b[i]*k[i]
+
+    return x_n
+
+def rk3(x_0, x_dot, dt):
+    a = Matrix([[0, 0, 0],
+                [Rational(1,2),0,0],
+                [-1,2,0]])
+    b = Matrix([Rational(1,6), Rational(2,3), Rational(1,6)])
+    c = Matrix([0, Rational(1,2),1])
+
+    return rk(a,b,c,x_0,x_dot,dt)
+
 # Parameters
 dt  = Symbol('dt')  # Time step
 R_s = Symbol('R_s') # Stator resistance
@@ -25,6 +52,9 @@ N_P = Symbol('N_P') # Number of magnetic pole pairs
 J   = Symbol('J')   # Rotor inertia
 T_l_pnoise = Symbol('T_l_pnoise') # Load torque process noise
 omega_pnoise = Symbol('omega_pnoise')
+param1 = Symbol('param1')
+param2 = Symbol('param2')
+u_d, u_ce, u_dc, t_dead_ratio = symbols('u_d, u_ce, u_dc, t_dead_ratio')
 
 # Inputs
 u_ab = Matrix(symbols('u_alpha u_beta')) # Stator voltages
@@ -97,7 +127,7 @@ pnoise_sigma = Matrix([omega_pnoise, 0, 0, 0, T_l_pnoise])*dt
 Q += diag(*pnoise_sigma.multiply_elementwise(pnoise_sigma))
 
 # x_p: state vector at time k+1
-x_p = f
+x_p = rk3(x, x_dot, dt)
 
 # P_p: covariance matrix at time k+1
 P_p = F*P*F.T + Q
@@ -106,7 +136,7 @@ P_p = upperTriangularToVec(P_p)
 
 # h: predicted measurement
 h = zeros(2,1)
-h[0:2,0] = R_dq_ab(theta_e_est) * Matrix([i_d_est, i_q_est])
+h[0:2,0] = R_dq_ab(theta_e_est) * (Matrix([i_d_est, i_q_est]) + Matrix([i_d_dot, i_q_dot])*param2)
 
 # z: observation
 z = toVec(i_ab_m)
@@ -114,7 +144,7 @@ z = toVec(i_ab_m)
 z_norm = (i_ab_m[0]**2+i_ab_m[1]**2)**0.5
 
 # R: observation covariance
-R = diag((i_noise)**2,(i_noise)**2) # Covariance of observation vector
+R = diag((i_noise+z_norm*param1)**2,(i_noise+z_norm*param1)**2) # Covariance of observation vector
 
 # y: innovation vector
 y = z-h
@@ -170,7 +200,7 @@ sys.stdout.write(
 )
 
 for i in range(len(init_P)):
-    sys.stdout.write('    cov[%u] = %s;\n' % (i, CCodePrinter().doprint(init_P[i])))
+    sys.stdout.write('    cov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(init_P[i])))
 
 sys.stdout.write(
 '    memset(&ekf_state[ekf_idx], 0, sizeof(ekf_state[ekf_idx]));\n'
@@ -181,7 +211,7 @@ sys.stdout.write(
 
 sys.stdout.write('static FTYPE subx[%u];\n' % (max(len(pred_subx),len(fuse_subx)),))
 sys.stdout.write(
-'static void ekf_predict(FTYPE dt, FTYPE u_alpha, FTYPE u_beta) {\n'
+'static void ekf_predict(FTYPE dt, FTYPE i_alpha_m, FTYPE i_beta_m, FTYPE u_alpha, FTYPE u_beta) {\n'
 '    uint8_t next_ekf_idx = (ekf_idx+1)%2;\n'
 '    FTYPE* state = ekf_state[ekf_idx].x;\n'
 '    FTYPE* cov = ekf_state[ekf_idx].P;\n'
@@ -192,13 +222,13 @@ sys.stdout.write(
 sys.stdout.write('    // %u operations\n' % (count_ops(x_p)+count_ops(P_p)+count_ops(pred_subx),))
 
 for i in range(len(pred_subx)):
-    sys.stdout.write('    %s = %s;\n' % (pred_subx[i][0], CCodePrinter().doprint(pred_subx[i][1])))
+    sys.stdout.write('    %s = %s;\n' % (pred_subx[i][0], CCodePrinter_float().doprint(pred_subx[i][1])))
 
 for i in range(len(x_p)):
-    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter().doprint(x_p[i])))
+    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_p[i])))
 
 for i in range(len(P_p)):
-    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter().doprint(P_p[i])))
+    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_p[i])))
 
 sys.stdout.write(
 '\n'
@@ -210,7 +240,7 @@ sys.stdout.write(
 
 sys.stdout.write(
 '\n'
-'static void ekf_update(FTYPE i_alpha_m, FTYPE i_beta_m) {\n'
+'static void ekf_update(FTYPE dt, FTYPE i_alpha_m, FTYPE i_beta_m, FTYPE u_alpha, FTYPE u_beta) {\n'
 '    uint8_t next_ekf_idx = (ekf_idx+1)%2;\n'
 '    FTYPE* state = ekf_state[ekf_idx].x;\n'
 '    FTYPE* cov = ekf_state[ekf_idx].P;\n'
@@ -223,18 +253,18 @@ sys.stdout.write(
 
 sys.stdout.write('    // %u operations\n' % (count_ops(x_n)+count_ops(P_n)+count_ops(fuse_subx),))
 for i in range(len(fuse_subx)):
-    sys.stdout.write('    %s = %s;\n' % (fuse_subx[i][0], CCodePrinter().doprint(fuse_subx[i][1])))
+    sys.stdout.write('    %s = %s;\n' % (fuse_subx[i][0], CCodePrinter_float().doprint(fuse_subx[i][1])))
 
 for i in range(len(x_n)):
-    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter().doprint(x_n[i])))
+    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_n[i])))
 
 for i in range(len(P_n)):
-    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter().doprint(P_n[i])))
+    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_n[i])))
 
 for i in range(len(y)):
-    sys.stdout.write('    innov[%u] = %s;\n' % (i, CCodePrinter().doprint(y[i])))
+    sys.stdout.write('    innov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(y[i])))
 
-sys.stdout.write('    *NIS = %s;\n' % (CCodePrinter().doprint(NIS[0]),))
+sys.stdout.write('    *NIS = %s;\n' % (CCodePrinter_float().doprint(NIS[0]),))
 
 sys.stdout.write(
 '\n'

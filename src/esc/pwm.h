@@ -17,11 +17,7 @@
 
 #include <stdint.h>
 
-typedef void (*pwm_phase_duty_callback_type)(float*,float*,float*);
-
 void pwm_init(void);
-void pwm_update(void);
-void pwm_set_phase_duty_callback(pwm_phase_duty_callback_type cb);
 void pwm_set_phase_duty(float phaseA, float phaseB, float phaseC);
 void pwm_get_phase_duty(float* phaseA, float* phaseB, float* phaseC);
 float pwm_get_freq(void);

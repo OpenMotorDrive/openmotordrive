@@ -6,18 +6,15 @@ from sympy import *
 import sys
 
 def svgen(alpha, beta, max_duty=1.):
-    Va = alpha * sqrt(2./3.)
-    Vb = (-(alpha/2.0)+(beta*sqrt(3.0)/2.0)) * sqrt(2./3.)
-    Vc = (-(alpha/2.0)-(beta*sqrt(3.0)/2.0)) * sqrt(2./3.)
-    print Va, Vb, Vc
+    Va = alpha
+    Vb = (-(alpha/2.0)+(beta*sqrt(3.0)/2.0))
+    Vc = (-(alpha/2.0)-(beta*sqrt(3.0)/2.0))
 
     Vneutral = 0.5 * (max(Va,Vb,Vc) + min(Va,Vb,Vc))
 
     Va += 0.5*max_duty-Vneutral
     Vb += 0.5*max_duty-Vneutral
     Vc += 0.5*max_duty-Vneutral
-
-    print Va-Vb, Vb-Vc, Vc-Va
 
     return (min(max(Va,0.),max_duty), min(max(Vb,0.),max_duty), min(max(Vc,0.),max_duty), Vneutral)
 

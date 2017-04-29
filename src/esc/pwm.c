@@ -27,8 +27,6 @@
 #define TIM_CCR5(tim_base)           MMIO32((tim_base) + 0x58)
 #define TIM1_CCR5                    TIM_CCR5(TIM1)
 
-static pwm_phase_duty_callback_type phase_duty_callback;
-
 void pwm_init(void)
 {
     rcc_periph_clock_enable(RCC_GPIOA);
@@ -66,19 +64,14 @@ void tim1_cc_isr(void) {
     }
 }
 
-void pwm_update(void) {
-    if (phase_duty_callback) {
-        float phaseA, phaseB, phaseC;
-        phase_duty_callback(&phaseA, &phaseB, &phaseC);
+void pwm_set_phase_duty(float phaseA, float phaseB, float phaseC) {
+    phaseA = constrain_float(phaseA, 0.0f, 1.0f);
+    phaseB = constrain_float(phaseB, 0.0f, 1.0f);
+    phaseC = constrain_float(phaseC, 0.0f, 1.0f);
 
-        TIM1_CCR1 = TIM1_ARR-roundf(TIM1_ARR*phaseA);
-        TIM1_CCR2 = TIM1_ARR-roundf(TIM1_ARR*phaseB);
-        TIM1_CCR3 = TIM1_ARR-roundf(TIM1_ARR*phaseC);
-    }
-}
-
-void pwm_set_phase_duty_callback(pwm_phase_duty_callback_type cb) {
-    phase_duty_callback = cb;
+    TIM1_CCR1 = TIM1_ARR-roundf(TIM1_ARR*phaseA);
+    TIM1_CCR2 = TIM1_ARR-roundf(TIM1_ARR*phaseB);
+    TIM1_CCR3 = TIM1_ARR-roundf(TIM1_ARR*phaseC);
 }
 
 void pwm_get_phase_duty(float* phaseA, float* phaseB, float* phaseC)

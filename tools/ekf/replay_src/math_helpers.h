@@ -1,7 +1,7 @@
 #pragma once
 
 #define M_PI_F ((float)M_PI)
-#define SQ(__X) (__X*__X)
+#define SQ(__X) ((__X)*(__X))
 
 static float wrap_1(float x)
 {
