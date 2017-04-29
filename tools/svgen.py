@@ -18,18 +18,20 @@ def svgen(alpha, beta, max_duty=1.):
 
     return (min(max(Va,0.),max_duty), min(max(Vb,0.),max_duty), min(max(Vc,0.),max_duty), Vneutral)
 
-print svgen(1, 0.)
+#print svgen(1, 0.)
 
-sys.exit()
+#sys.exit()
 
 times = np.linspace(0,6.28,1000)
-voltages = zip(*[svgen(sin(t) * sqrt(2./3.), sin(t+pi/2) * sqrt(2./3.),1.) for t in times])
+#v_s = 1./(3.**0.5)
+v_s = 2./3.
+voltages = zip(*[svgen(sin(t) * v_s, sin(t+pi/2) * v_s,1.) for t in times])
 
-print times, voltages
+#print times, voltages
 
-plt.plot(times, np.array(voltages[1])-np.array(voltages[0]))
-plt.plot(times, np.array(voltages[2])-np.array(voltages[1]))
-plt.plot(times, np.array(voltages[0])-np.array(voltages[2]))
+plt.plot(times, np.array(voltages[1]))
+plt.plot(times, np.array(voltages[2]))
+plt.plot(times, np.array(voltages[0]))
 
 #plt.plot(times, voltages[0])
 #plt.plot(times, voltages[1])

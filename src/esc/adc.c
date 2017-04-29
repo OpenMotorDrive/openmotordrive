@@ -24,7 +24,7 @@
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/dma.h>
 
-#define SAMPLE_FREQ 9000.0f
+#define SAMPLE_FREQ 18000.0f
 #define SAMPLE_PERIOD (1.0f/SAMPLE_FREQ)
 #define NUM_CONVERSIONS 4UL
 
@@ -142,7 +142,6 @@ void adc1_2_isr(void)
 
 static void write_sample_buffer(volatile uint16_t* in_buf)
 {
-    uint8_t i;
     uint8_t write_idx = (sample_idx+1)&1U;
 
     sample[write_idx].seq = sample[sample_idx].seq+1;
@@ -179,7 +178,7 @@ void adc_wait_for_sample(void)
     while(sample[sample_idx].seq==seq_prev);
 }
 
-struct adc_sample_s* adc_get_sample(void)
+volatile struct adc_sample_s* adc_get_sample(void)
 {
     return &sample[sample_idx];
 }

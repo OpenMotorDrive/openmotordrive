@@ -73,19 +73,19 @@ param_bounds = {
     "J": (0.000001, 0.01),
     "i_noise": (0.0001, 0.1),
     "u_noise": (0, 20),
-    "T_l_pnoise": (0, 100),
+    "alpha_load_pnoise": (0, 1e6),
     "encoder_theta_e_bias": (-math.pi, math.pi),
     "encoder_delay": (-1e-3,1e-3),
     "omega_pnoise":(0,1e6),
-    "param1":(0,1e6),
+    "param1":(-1e6,1e6),
     "param2":(-1e-4,1e-4),
     "u_d":(0,2),
     "u_ce":(0,2),
     "t_dead_ratio":(0,1),
     }
 
-opt_param_names = ["R_s", "encoder_theta_e_bias", "encoder_delay", "t_dead_ratio"]
-objective="curr_err_sq_int"
+opt_param_names = ["L_d", "L_q", "R_s", "J", "lambda_r", "encoder_theta_e_bias", "encoder_delay", "alpha_load_pnoise", "omega_pnoise"]
+objective="EVERYTHING"
 opt_params = [init_params[x] for x in opt_param_names]
 opt_param_bounds = [param_bounds[x] for x in opt_param_names]
 res = minimize(objective_func, opt_params, bounds=opt_param_bounds, method='Nelder-Mead', options={'maxiter':1000000,'maxfev':1000000})

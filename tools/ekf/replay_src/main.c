@@ -19,7 +19,7 @@ static float J;
 static float N_P;
 static float i_noise;
 static float u_noise;
-static float T_l_pnoise;
+static float alpha_load_pnoise;
 static float encoder_theta_e_bias;
 static float encoder_delay;
 static float omega_pnoise;
@@ -42,7 +42,7 @@ static const struct {
     {"N_P", &N_P},
     {"i_noise", &i_noise},
     {"u_noise", &u_noise},
-    {"T_l_pnoise", &T_l_pnoise},
+    {"alpha_load_pnoise", &alpha_load_pnoise},
     {"encoder_theta_e_bias", &encoder_theta_e_bias},
     {"encoder_delay", &encoder_delay},
     {"omega_pnoise", &omega_pnoise},
@@ -135,7 +135,7 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     }
     struct packet_s* pkt = (struct packet_s*)buf;
 
-    pkt->encoder_theta_e = 0;//wrap_2pi(pkt->encoder_theta_e-encoder_theta_e_bias-pkt->encoder_omega_e*encoder_delay);
+    pkt->encoder_theta_e = wrap_2pi(pkt->encoder_theta_e-encoder_theta_e_bias+pkt->encoder_omega_e*encoder_delay);
 
     if (!ekf_initialized) {
         ekf_init(pkt->encoder_theta_e);
@@ -148,11 +148,11 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
 
         float u_alpha, u_beta;
         ekf_predict(pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
-//         ekf_update(pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
+        ekf_update(pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
 
-        ekf_state[ekf_idx].x[0] = 2*M_PI_F/7;//pkt->encoder_omega_e/7;
-        ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
-        memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
+//         ekf_state[ekf_idx].x[0] = pkt->encoder_omega_e/N_P;
+//         ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
+//         memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
 
     }
 
@@ -163,6 +163,10 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
 
     float i_d_m, i_q_m;
     transform_alpha_beta_to_d_q(pkt->encoder_theta_e, pkt->i_alpha_m, pkt->i_beta_m, &i_d_m, &i_q_m);
+
+    float i_alpha, i_beta;
+    transform_alpha_beta_to_d_q(-x[1], x[2], x[3], &i_alpha, &i_beta);
+
 
     float u_d, u_q;
     transform_alpha_beta_to_d_q(pkt->encoder_theta_e, pkt->u_alpha, pkt->u_beta, &u_d, &u_q);
@@ -175,7 +179,7 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     theta_e_err_abs_sum += fabsf(theta_e_err);
     theta_e_err_sq_sum += SQ(theta_e_err);
     curr_innov_sq_sum += SQ(innov[0])+SQ(innov[1]);
-    curr_err_sq_sum += SQ(i_d_m-x[2])+SQ(i_q_m-x[3]);
+    curr_err_sq_sum += SQ(pkt->i_alpha_m-i_alpha)+SQ(pkt->i_beta_m-i_beta);
     NIS_sum += NIS;
 //         variance_sum += P[0];
 //         variance_sum += P[5];
@@ -245,7 +249,7 @@ int main(int argc, char **argv) {
                 handle_decoded_pkt(decoded_pkt_len, decoded_pkt, out_file);
                 first_frame = false;
             } else {
-                printf("frame %u length incorrect, %u\n", frame_num, decoded_pkt_len);
+//                 printf("frame %u length incorrect, %u\n", frame_num, decoded_pkt_len);
             }
 
             frame_num++;

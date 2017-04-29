@@ -28,7 +28,7 @@ enum motor_mode_t {
 };
 
 void motor_init(void);
-void motor_update(float dt, struct adc_sample_s* adc_sample);
+bool motor_update(void);
 void motor_set_mode(enum motor_mode_t mode);
 void motor_set_iq_ref(float id_ref);
 enum motor_mode_t motor_get_mode(void);
@@ -38,7 +38,7 @@ float motor_get_elec_rotor_angle(void);
 float motor_get_vbatt(void);
 float motor_get_iq_est(void);
 float motor_get_iq_meas(void);
-void motor_print_data(float dt);
-void motor_update_ekf(float dt);
+void motor_print_data(void);
+void motor_update_ekf(void);
 void motor_set_omega_ref(float val);
 void motor_set_duty_ref(float val);

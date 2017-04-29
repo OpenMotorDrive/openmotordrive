@@ -50,11 +50,8 @@ L_q = Symbol('L_q')   # L_q
 lambda_r = Symbol('lambda_r') # Rotor flux linkage
 N_P = Symbol('N_P') # Number of magnetic pole pairs
 J   = Symbol('J')   # Rotor inertia
-T_l_pnoise = Symbol('T_l_pnoise') # Load torque process noise
+alpha_load_pnoise = Symbol('alpha_load_pnoise') # Load torque process noise
 omega_pnoise = Symbol('omega_pnoise')
-param1 = Symbol('param1')
-param2 = Symbol('param2')
-u_d, u_ce, u_dc, t_dead_ratio = symbols('u_d, u_ce, u_dc, t_dead_ratio')
 
 # Inputs
 u_ab = Matrix(symbols('u_alpha u_beta')) # Stator voltages
@@ -122,7 +119,7 @@ Q_u = diag(*w_u_sigma.multiply_elementwise(w_u_sigma))
 # Q: covariance of additive noise on x
 Q = G*Q_u*G.T
 
-pnoise_sigma = Matrix([omega_pnoise, 0, 0, 0, T_l_pnoise])*dt
+pnoise_sigma = Matrix([omega_pnoise, 0, 0, 0, alpha_load_pnoise*J])*dt
 
 Q += diag(*pnoise_sigma.multiply_elementwise(pnoise_sigma))
 
@@ -136,7 +133,7 @@ P_p = upperTriangularToVec(P_p)
 
 # h: predicted measurement
 h = zeros(2,1)
-h[0:2,0] = R_dq_ab(theta_e_est) * (Matrix([i_d_est, i_q_est]) + Matrix([i_d_dot, i_q_dot])*param2)
+h[0:2,0] = R_dq_ab(theta_e_est) * Matrix([i_d_est, i_q_est])
 
 # z: observation
 z = toVec(i_ab_m)
@@ -144,7 +141,7 @@ z = toVec(i_ab_m)
 z_norm = (i_ab_m[0]**2+i_ab_m[1]**2)**0.5
 
 # R: observation covariance
-R = diag((i_noise+z_norm*param1)**2,(i_noise+z_norm*param1)**2) # Covariance of observation vector
+R = diag((i_noise)**2,(i_noise)**2) # Covariance of observation vector
 
 # y: innovation vector
 y = z-h

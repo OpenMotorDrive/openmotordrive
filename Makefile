@@ -12,12 +12,12 @@ LDLIBS := -lopencm3_stm32f3 -lm -Wl,--start-group -lc -lgcc -lrdimon -Wl,--end-g
 CFLAGS += -std=gnu11 -O3 -ffast-math -g -Wdouble-promotion -Wextra -Wshadow -Werror=implicit-function-declaration -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes -fsingle-precision-constant -fno-common -ffunction-sections -fdata-sections -MD -Wall -Wundef -Isrc -I$(LIBOPENCM3_DIR)/include -I$(LIBCANARD_DIR) -DSTM32F3 -D"CANARD_ASSERT(x)"="do {} while(0)" -DGIT_HASH=0x$(shell git rev-parse --short=8 HEAD)
 
 COMMON_OBJS := $(addprefix build/,$(addsuffix .o,$(basename $(shell find src/esc -name "*.c"))))
-PROGS := $(addprefix build/bin/,$(addsuffix .elf,$(notdir $(basename $(shell ls src/programs/*.c)))))
+BIN := build/bin/main.elf
 
 .PHONY: all
-all: $(LIBOPENCM3_DIR) $(PROGS)
+all: $(LIBOPENCM3_DIR) $(BIN)
 
-build/bin/%.elf: $(COMMON_OBJS) build/canard.o build/src/programs/%.o
+build/bin/%.elf: $(COMMON_OBJS) build/canard.o
 	@echo "### BUILDING $@"
 	@mkdir -p "$(dir $@)"
 	@arm-none-eabi-gcc $(LDFLAGS) $(ARCH_FLAGS) $^ $(LDLIBS) -o $@
@@ -45,14 +45,9 @@ $(LIBOPENCM3_DIR):
 	@echo "### BUILDING $@"
 	@$(MAKE) -C $(LIBOPENCM3_DIR)
 
-.PHONY: %-upload
-.PRECIOUS: build/bin/%.bin
-%-upload: build/bin/%.elf build/bin/%.bin
+upload: build/bin/main.elf build/bin/main.bin
 	@echo "### UPLOADING"
 	@openocd -f openocd.cfg -c "program $< verify reset exit"
-
-.PHONY: %
-%: build/bin/%.elf build/bin/%.bin ;
 
 .PHONY: clean
 clean:

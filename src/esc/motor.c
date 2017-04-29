@@ -17,9 +17,7 @@
 
 #include <string.h>
 #include <esc/helpers.h>
-#include <esc/pwm.h>
-#include <esc/adc.h>
-#include <esc/drv.h>
+#include <esc/inverter.h>
 #include <esc/encoder.h>
 #include <esc/timing.h>
 #include <esc/curr_pid.h>
@@ -38,8 +36,6 @@ enum commutaton_method_t {
 static struct {
     float mot_n_poles;
     float elec_theta_bias;
-    float vsense_div;
-    float csa_R;
     float calibration_voltage;
     float foc_bandwidth_hz;
     float start_current;
@@ -53,7 +49,6 @@ static struct {
     float ekf_i_noise;
     float ekf_u_noise;
     float ekf_T_l_pnoise;
-    float pwm_deadtime;
 } params;
 
 static struct {
@@ -69,12 +64,13 @@ static struct {
     float mech_theta_0;
 } encoder_cal_state;
 
-static float csa_cal[3]; // current sense amplifier calibration
-static uint32_t csa_meas_t_us;
 static enum motor_mode_t motor_mode = MOTOR_MODE_DISABLED;
-static float vbatt_m; // battery voltage
 static float duty_ref;
 static float duty_tgt;
+
+static float dt;
+static struct inverter_sense_data_s inverter_sense_data;
+static float prev_u_alpha, prev_u_beta;
 
 static struct {
     float i_a, i_b, i_c;
@@ -85,36 +81,19 @@ static struct {
     float mech_omega;
 } motor_state;
 
-// double-buffered phase output
-static volatile uint8_t phase_output_idx = 0;
-static volatile struct {
-    uint32_t t_us;
-    float u_alpha;
-    float u_beta;
-    float omega;
-} phase_output[2];
-
 static struct curr_pid_param_s iq_pid_param;
 static struct curr_pid_state_s iq_pid_state;
 
 static struct curr_pid_param_s id_pid_param;
 static struct curr_pid_state_s id_pid_state;
 
-static void run_foc(float dt);
+static void run_foc(void);
 static void run_encoder_calibration(void);
 static void run_phase_voltage_test(void);
-static void process_adc_measurements(struct adc_sample_s* adc_sample);
 static void retrieve_encoder_measurement(void);
-static void update_encoder_state(float dt);
-static void update_motor_state(float dt);
-static void transform_a_b_c_to_alpha_beta(float a, float b, float c, float* alpha, float* beta);
-static void transform_alpha_beta_to_a_b_c(float alpha, float beta, float* a, float* b, float* c);
-static void transform_d_q_to_alpha_beta(float theta, float d, float q, float* alpha, float* beta);
-static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, float* d, float* q);
-static void set_alpha_beta_output_voltages(float duty_alpha, float duty_beta, float omega);
-static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC);
+
 static void init_ekf(float theta);
-static void update_ekf(float dt);
+static void update_ekf(float u_alpha, float u_beta);
 
 struct ekf_state_s {
     float x[5];
@@ -128,8 +107,6 @@ static void load_config(void)
 {
     params.mot_n_poles = *param_retrieve_by_name("ESC_MOT_POLES");
     params.elec_theta_bias = *param_retrieve_by_name("ESC_ENC_EBIAS");
-    params.vsense_div = *param_retrieve_by_name("ESC_HW_VSENSE_DIV");
-    params.csa_R = *param_retrieve_by_name("ESC_HW_CSA_R");
     params.calibration_voltage = *param_retrieve_by_name("ESC_MOT_CAL_V");
     params.foc_bandwidth_hz = *param_retrieve_by_name("ESC_FOC_BANDWIDTH");
     params.start_current = *param_retrieve_by_name("ESC_FOC_START_CURR");
@@ -143,7 +120,6 @@ static void load_config(void)
     params.ekf_i_noise = *param_retrieve_by_name("ESC_EKF_CURR_M_NSE");
     params.ekf_u_noise = *param_retrieve_by_name("ESC_EKF_VOLT_NSE");
     params.ekf_T_l_pnoise = *param_retrieve_by_name("ESC_EKF_LOAD_T_PNSE");
-    params.pwm_deadtime = *param_retrieve_by_name("ESC_PWM_DEADTIME");
 
     float foc_bandwidth_rads = 2.0f*M_PI_F*params.foc_bandwidth_hz;
 
@@ -154,47 +130,70 @@ static void load_config(void)
     iq_pid_param.K_I = iq_pid_param.K_P * params.R_s/params.L_q;
 }
 
+static void retrieve_encoder_measurement(void)
+{
+    encoder_read_angle();
+    encoder_state.mech_theta = wrap_2pi(encoder_get_angle_rad());
+    encoder_state.elec_theta = wrap_2pi(encoder_state.mech_theta*params.mot_n_poles-params.elec_theta_bias);
+}
+
 void motor_init(void)
 {
-    uint16_t i;
-
     load_config();
-
-    // calibrate phase currents
-    struct adc_sample_s adc_sample;
-    drv_csa_cal_mode_on();
-    usleep(50);
-    memset(csa_cal, 0, sizeof(csa_cal));
-    for(i=0; i<1000; i++) {
-        adc_wait_for_sample();
-        adc_get_sample(&adc_sample);
-        csa_cal[0] += adc_sample.csa_v[0];
-        csa_cal[1] += adc_sample.csa_v[1];
-        csa_cal[2] += adc_sample.csa_v[2];
-    }
-    drv_csa_cal_mode_off();
-    csa_cal[0] /= 1000;
-    csa_cal[1] /= 1000;
-    csa_cal[2] /= 1000;
 
     // initialize encoder filter states
     retrieve_encoder_measurement();
     encoder_state.prev_mech_theta = encoder_state.mech_theta;
     encoder_state.mech_omega_est = 0.0f;
-
-    pwm_set_phase_duty_callback(calc_phase_duties);
 }
 
-void motor_update(float dt, struct adc_sample_s* adc_sample)
+bool motor_update(void)
 {
-    process_adc_measurements(adc_sample);
-    retrieve_encoder_measurement();
-    update_encoder_state(dt);
-    update_motor_state(dt);
+    // Retreive electrical measurements from inverter, compute dt
+    uint8_t prev_seq = inverter_sense_data.seq;
+    uint8_t curr_seq = inverter_get_sense_data()->seq;
+    uint8_t d_seq = curr_seq-prev_seq;
+    if (d_seq < 4) {
+        return false;
+    }
+    inverter_sense_data = *inverter_get_sense_data();
+    dt = d_seq*inverter_get_sense_data_sample_period();
 
+    // Retreive angle measurement from encoder
+    retrieve_encoder_measurement();
+
+    // Differentiate encoder angle measurement and apply LPF
+    const float tc = 0.0002f;
+    const float alpha = dt/(dt+tc);
+    encoder_state.mech_omega_est += (wrap_pi(encoder_state.mech_theta-encoder_state.prev_mech_theta)/dt - encoder_state.mech_omega_est) * alpha;
+    encoder_state.prev_mech_theta = encoder_state.mech_theta;
+
+    // Set motor speed and position states
+    switch (params.commutation_method) {
+        case COMMUTATION_METHOD_SENSORLESS_EKF: {
+            motor_state.mech_omega = ekf_state[ekf_idx].x[0];
+            motor_state.elec_omega = motor_state.mech_omega * params.mot_n_poles;
+            motor_state.elec_theta = ekf_state[ekf_idx].x[1] + motor_state.elec_omega*dt;
+            break;
+        }
+        case COMMUTATION_METHOD_ENCODER: {
+            motor_state.mech_omega = encoder_state.mech_omega_est;
+            motor_state.elec_omega = motor_state.mech_omega * params.mot_n_poles;
+            motor_state.elec_theta = encoder_state.elec_theta;
+            break;
+        }
+    }
+
+    // Transform inverter measurements to 2-phase equivalent values in stationary (alpha-beta) and synchronous (d-q) frames
+    transform_a_b_c_to_alpha_beta(inverter_sense_data.i_a, inverter_sense_data.i_b, inverter_sense_data.i_c, &motor_state.i_alpha, &motor_state.i_beta);
+    transform_alpha_beta_to_d_q(motor_state.elec_theta, motor_state.i_alpha, motor_state.i_beta, &motor_state.i_d, &motor_state.i_q);
+
+    inverter_get_alpha_beta_output_voltages(&prev_u_alpha, &prev_u_beta);
+
+    // Update control loop
     switch (motor_mode) {
         case MOTOR_MODE_DISABLED:
-            set_alpha_beta_output_voltages(0, 0, 0);
+            inverter_disable_output();
             break;
 
         case MOTOR_MODE_FOC_DUTY: {
@@ -204,13 +203,13 @@ void motor_update(float dt, struct adc_sample_s* adc_sample)
                 duty_ref = duty_tgt;
             }
 
-            motor_set_iq_ref((duty_ref*vbatt_m/sqrtf(2.0f) - 6.36619772367581*motor_state.mech_omega/params.K_v)/params.R_s);
-            run_foc(dt);
+            motor_set_iq_ref((duty_ref*inverter_sense_data.v_bus/sqrtf(2.0f) - 6.36619772367581*motor_state.mech_omega/params.K_v)/params.R_s);
+            run_foc();
             break;
         }
 
         case MOTOR_MODE_FOC_CURRENT: {
-            run_foc(dt);
+            run_foc();
             break;
         }
         case MOTOR_MODE_ENCODER_CALIBRATION: {
@@ -224,7 +223,9 @@ void motor_update(float dt, struct adc_sample_s* adc_sample)
         }
     }
 
-    update_ekf(dt);
+    // Update estimator
+    update_ekf(prev_u_alpha, prev_u_beta);
+    return true;
 }
 
 void motor_set_mode(enum motor_mode_t new_mode)
@@ -235,12 +236,11 @@ void motor_set_mode(enum motor_mode_t new_mode)
 
     load_config();
 
-    set_alpha_beta_output_voltages(0, 0, 0);
 
     if (new_mode == MOTOR_MODE_DISABLED) {
-        drv_6_pwm_mode();
+        inverter_disable_output();
     } else {
-        drv_3_pwm_mode();
+        inverter_set_alpha_beta_output_voltages(micros(), 0, 0, 0);
     }
 
     if (new_mode == MOTOR_MODE_ENCODER_CALIBRATION) {
@@ -297,12 +297,7 @@ float motor_get_elec_rotor_angle(void)
     return encoder_state.mech_theta;
 }
 
-float motor_get_vbatt(void)
-{
-    return vbatt_m;
-}
-
-static void run_foc(float dt)
+static void run_foc(void)
 {
     id_pid_param.dt = iq_pid_param.dt = dt;
     id_pid_param.dt = iq_pid_param.dt = dt;
@@ -316,9 +311,9 @@ static void run_foc(float dt)
     id_pid_param.i_ref = constrain_float(params.start_current-fabsf(motor_state.elec_omega)/60, 0.0f, params.start_current);
 
     if (overmodulation) {
-        id_pid_param.output_limit = vbatt_m*sqrtf(2.0f/3.0f);
+        id_pid_param.output_limit = inverter_sense_data.v_bus*2.0f/3.0f;
     } else {
-        id_pid_param.output_limit = vbatt_m/sqrtf(2.0f);
+        id_pid_param.output_limit = inverter_sense_data.v_bus/sqrtf(3.0f);
     }
 
     curr_pid_run(&id_pid_param, &id_pid_state);
@@ -331,7 +326,7 @@ static void run_foc(float dt)
     transform_d_q_to_alpha_beta(motor_state.elec_theta, id_pid_state.output, iq_pid_state.output, &u_alpha, &u_beta);
 
     // Output to phases
-    set_alpha_beta_output_voltages(u_alpha, u_beta, motor_state.elec_omega);
+    inverter_set_alpha_beta_output_voltages(inverter_sense_data.t_us, u_alpha, u_beta, motor_state.elec_omega);
 }
 
 static void run_encoder_calibration(void)
@@ -389,11 +384,11 @@ static void run_encoder_calibration(void)
     float sin_theta = sinf_fast(theta);
     float cos_theta = cosf_fast(theta);
 
-    float v = constrain_float(params.calibration_voltage, 0.0f, vbatt_m);
+    float v = constrain_float(params.calibration_voltage, 0.0f, inverter_sense_data.v_bus);
     u_alpha = v * cos_theta;
     u_beta = v * sin_theta;
 
-    set_alpha_beta_output_voltages(u_alpha, u_beta, 0);
+    inverter_set_alpha_beta_output_voltages(inverter_sense_data.t_us, u_alpha, u_beta, 0);
 }
 
 static void run_phase_voltage_test(void)
@@ -403,157 +398,11 @@ static void run_phase_voltage_test(void)
     float sin_theta = sinf_fast(theta);
     float cos_theta = cosf_fast(theta);
 
-    float v = constrain_float(1.0f, 0.0f, vbatt_m);
+    float v = constrain_float(1.0f, 0.0f, inverter_sense_data.v_bus);
     u_alpha = v * cos_theta;
     u_beta = v * sin_theta;
 
-    set_alpha_beta_output_voltages(u_alpha, u_beta, 0);
-}
-
-static void process_adc_measurements(struct adc_sample_s* adc_sample)
-{
-    // Retrieve battery measurement
-    vbatt_m = adc_sample->vsense_v * params.vsense_div;
-
-    // Retrieve current sense amplifier measurement
-    csa_meas_t_us = adc_sample->t_us;
-    motor_state.i_a = (adc_sample->csa_v[0]-csa_cal[0])/(drv_get_csa_gain()*params.csa_R);
-    motor_state.i_b = (adc_sample->csa_v[1]-csa_cal[1])/(drv_get_csa_gain()*params.csa_R);
-    motor_state.i_c = (adc_sample->csa_v[2]-csa_cal[2])/(drv_get_csa_gain()*params.csa_R);
-
-    // Reconstruct current measurement
-    float duty_a, duty_b, duty_c;
-    pwm_get_phase_duty(&duty_a, &duty_b, &duty_c);
-
-    if (duty_a > duty_b && duty_a > duty_c) {
-        motor_state.i_a = -motor_state.i_b-motor_state.i_c;
-    } else if (duty_b > duty_a && duty_b > duty_c) {
-        motor_state.i_b = -motor_state.i_a-motor_state.i_c;
-    } else {
-        motor_state.i_c = -motor_state.i_a-motor_state.i_b;
-    }
-}
-
-static void retrieve_encoder_measurement(void)
-{
-    encoder_state.mech_theta = wrap_2pi(encoder_get_angle_rad());
-    encoder_state.elec_theta = wrap_2pi(encoder_state.mech_theta*params.mot_n_poles-params.elec_theta_bias);
-}
-
-static void update_encoder_state(float dt)
-{
-    const float tc = 0.0002f;
-    const float alpha = dt/(dt+tc);
-    encoder_state.mech_omega_est += (wrap_pi(encoder_state.mech_theta-encoder_state.prev_mech_theta)/dt - encoder_state.mech_omega_est) * alpha;
-    encoder_state.prev_mech_theta = encoder_state.mech_theta;
-}
-
-static void update_motor_state(float dt)
-{
-    switch (params.commutation_method) {
-        case COMMUTATION_METHOD_SENSORLESS_EKF: {
-            motor_state.mech_omega = ekf_state[ekf_idx].x[0];
-            motor_state.elec_omega = motor_state.mech_omega * params.mot_n_poles;
-            motor_state.elec_theta = ekf_state[ekf_idx].x[1] + motor_state.elec_omega*dt;
-            break;
-        }
-        case COMMUTATION_METHOD_ENCODER: {
-            motor_state.mech_omega = encoder_state.mech_omega_est;
-            motor_state.elec_omega = motor_state.mech_omega * params.mot_n_poles;
-            motor_state.elec_theta = encoder_state.elec_theta;
-            break;
-        }
-    }
-
-    transform_a_b_c_to_alpha_beta(motor_state.i_a, motor_state.i_b, motor_state.i_c, &motor_state.i_alpha, &motor_state.i_beta);
-    transform_alpha_beta_to_d_q(motor_state.elec_theta, motor_state.i_alpha, motor_state.i_beta, &motor_state.i_d, &motor_state.i_q);
-}
-
-static void transform_a_b_c_to_alpha_beta(float a, float b, float c, float* alpha, float* beta)
-{
-    *alpha = 0.666666666666667*a - 0.333333333333333*b - 0.333333333333333*c;
-    *beta = 0.577350269189626*b - 0.577350269189626*c;
-}
-
-static void transform_alpha_beta_to_a_b_c(float alpha, float beta, float* a, float* b, float* c)
-{
-    *a = alpha;
-    *b = -0.5*alpha + 0.866025403784439*beta;
-    *c = -0.5*alpha - 0.866025403784439*beta;
-}
-
-static void transform_d_q_to_alpha_beta(float theta, float d, float q, float* alpha, float* beta)
-{
-    float sin_theta = sinf_fast(theta);
-    float cos_theta = cosf_fast(theta);
-
-    *alpha = d*cos_theta - q*sin_theta;
-    *beta = d*sin_theta + q*cos_theta;
-}
-
-static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, float* d, float* q)
-{
-    float sin_theta = sinf_fast(theta);
-    float cos_theta = cosf_fast(theta);
-
-    *d = alpha*cos_theta + beta*sin_theta;
-    *q = -alpha*sin_theta + beta*cos_theta;
-}
-
-static void set_alpha_beta_output_voltages(float u_alpha, float u_beta, float omega)
-{
-
-    uint8_t next_phase_output_idx = (phase_output_idx+1)%2;
-    phase_output[next_phase_output_idx].t_us = csa_meas_t_us;
-    phase_output[next_phase_output_idx].omega = omega;
-    phase_output[next_phase_output_idx].u_alpha = u_alpha;
-    phase_output[next_phase_output_idx].u_beta = u_beta;
-    phase_output_idx = next_phase_output_idx;
-    pwm_update();
-}
-
-static void calc_phase_duties(float* phaseA, float* phaseB, float* phaseC)
-{
-    if (motor_mode == MOTOR_MODE_DISABLED) {
-        (*phaseA) = 0;
-        (*phaseB) = 0;
-        (*phaseC) = 0;
-        return;
-    }
-
-    uint32_t tnow_us = micros();
-    uint32_t dt_us = tnow_us-phase_output[phase_output_idx].t_us;
-    float dt = dt_us*1e-6f;
-    float delta_theta = dt * phase_output[phase_output_idx].omega;
-    if (dt > 0.01f) {
-        (*phaseA) = 0;
-        (*phaseB) = 0;
-        (*phaseC) = 0;
-        return;
-    }
-
-    float alpha, beta;
-    transform_d_q_to_alpha_beta(delta_theta, phase_output[phase_output_idx].u_alpha, phase_output[phase_output_idx].u_beta, &alpha, &beta);
-
-    // Space-vector generator
-    // Per http://www.embedded.com/design/real-world-applications/4441150/2/Painless-MCU-implementation-of-space-vector-modulation-for-electric-motor-systems
-    // Does not overmodulate, provided the input magnitude is <= 1.0/sqrt(2)
-    float Vneutral;
-    transform_alpha_beta_to_a_b_c(alpha, beta, phaseA, phaseB, phaseC);
-
-    const float deadtime_correction = params.pwm_deadtime/(3*pwm_get_period());
-    *phaseA += (2*SIGN(motor_state.i_a)-SIGN(motor_state.i_b)-SIGN(motor_state.i_c))*deadtime_correction;
-    *phaseB += (2*SIGN(motor_state.i_b)-SIGN(motor_state.i_a)-SIGN(motor_state.i_c))*deadtime_correction;
-    *phaseC += (2*SIGN(motor_state.i_c)-SIGN(motor_state.i_a)-SIGN(motor_state.i_b))*deadtime_correction;
-
-    Vneutral = 0.5f * (MAX(MAX((*phaseA),(*phaseB)),(*phaseC)) + MIN(MIN((*phaseA),(*phaseB)),(*phaseC)));
-    *phaseA += 0.5f-Vneutral + SIGN(motor_state.i_a)*deadtime_correction;
-    *phaseB += 0.5f-Vneutral + SIGN(motor_state.i_b)*deadtime_correction;
-    *phaseC += 0.5f-Vneutral + SIGN(motor_state.i_c)*deadtime_correction;
-
-    *phaseA = constrain_float(*phaseA, 0.0f, 1.0f);
-    *phaseB = constrain_float(*phaseB, 0.0f, 1.0f);
-    *phaseC = constrain_float(*phaseC, 0.0f, 1.0f);
+    inverter_set_alpha_beta_output_voltages(inverter_sense_data.t_us, u_alpha, u_beta, 0);
 }
 
 static void init_ekf(float theta)
@@ -587,11 +436,8 @@ static void init_ekf(float theta)
     cov[14] = 0.0100000000000000;
 }
 
-static void update_ekf(float dt)
+static void update_ekf(float u_alpha, float u_beta)
 {
-    float u_alpha = phase_output[(phase_output_idx+1)%2].u_alpha;
-    float u_beta = phase_output[(phase_output_idx+1)%2].u_beta;
-
     uint8_t next_ekf_idx = (ekf_idx+1)%2;
     float* state = ekf_state[ekf_idx].x;
     float* cov = ekf_state[ekf_idx].P;
@@ -702,15 +548,12 @@ static void update_ekf(float dt)
     ekf_idx = next_ekf_idx;
 }
 
-void motor_print_data(float dt) {
+void motor_print_data(void) {
     uint8_t slip_msg[80];
     uint8_t slip_msg_len = 0;
     uint8_t i;
     uint32_t tnow_us = micros();
     float omega_e = encoder_state.mech_omega_est*params.mot_n_poles;
-
-    float prev_u_alpha = phase_output[(phase_output_idx+1)%2].u_alpha;
-    float prev_u_beta = phase_output[(phase_output_idx+1)%2].u_beta;
 
     for (i=0; i<sizeof(uint32_t); i++) {
         slip_encode_and_append(((uint8_t*)&tnow_us)[i], &slip_msg_len, slip_msg, sizeof(slip_msg));

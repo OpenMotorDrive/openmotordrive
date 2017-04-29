@@ -50,18 +50,8 @@ void pwm_init(void)
     timer_set_period(TIM1, 2000);
     TIM1_CCR4 = TIM1_ARR;
     TIM1_CCR5 = 24;
-//     TIM1_CR2 |= 0b0111 << 20; // MMS2 OCREF4
     TIM1_CR2 |= 0b1000 << 20; // MMS2 OCREF5
-    nvic_enable_irq(NVIC_TIM1_CC_IRQ);
-    TIM1_DIER |= (1<<4); // CC4IE
     timer_enable_counter(TIM1);
-}
-
-void tim1_cc_isr(void) {
-    if (TIM1_SR & (1<<4)) {
-        TIM1_SR &= ~(1<<4); // CC4IF
-        pwm_update();
-    }
 }
 
 void pwm_set_phase_duty(float phaseA, float phaseB, float phaseC) {

@@ -27,7 +27,7 @@ struct adc_sample_s {
 };
 
 void adc_init(void);
-struct adc_sample_s* adc_get_sample(void);
+volatile struct adc_sample_s* adc_get_sample(void);
 void adc_wait_for_sample(void);
 void adc_set_new_sample_isr(ISR_ptr cb);
 uint32_t adc_get_errcnt(void);

@@ -25,10 +25,10 @@
 #include <esc/adc.h>
 #include <esc/pwm.h>
 #include <esc/drv.h>
+#include <esc/inverter.h>
 #include <esc/motor.h>
 #include <esc/encoder.h>
 #include <esc/can.h>
-#include <esc/program.h>
 #include <esc/semihost_debug.h>
 #include <esc/uavcan.h>
 #include <stdio.h>
@@ -44,9 +44,56 @@ static bool restart_request_handler(void)
     return true;
 }
 
+
+static uint32_t tbegin_us;
+static bool waiting_to_start = false;
+static bool started = false;
+static float t_max = 20.0f;
+
+static void setup(void)
+{
+    tbegin_us = micros();
+//     serial_send_dma(1, "\x55");
+//     motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
+}
+
+static void loop(void)
+{
+    if (motor_get_mode() == MOTOR_MODE_ENCODER_CALIBRATION) {
+        return;
+    }
+    if (motor_get_mode() != MOTOR_MODE_DISABLED) {
+        motor_print_data();
+    }
+
+    uint32_t tnow = micros();
+    float t = (tnow-tbegin_us)*1.0e-6f;
+
+    if (motor_get_mode() == MOTOR_MODE_DISABLED && !waiting_to_start && !started) {
+        waiting_to_start = true;
+        tbegin_us = micros();
+    } else if (waiting_to_start && !started && t > 0.1f) {
+        tbegin_us = micros();
+        started = true;
+        motor_set_mode(MOTOR_MODE_FOC_DUTY);
+    } else if (started && t >= t_max && motor_get_mode() != MOTOR_MODE_DISABLED) {
+        motor_set_mode(MOTOR_MODE_DISABLED);
+    }
+
+    if (t < 3) {
+        motor_set_duty_ref(0.08f);
+    } else if (t < 11.5) {
+        float thr = ((uint32_t)((t-1)*2))*0.025f;
+        motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? 0.08f : thr);
+    } else if (t < 20.0) {
+        float thr = ((uint32_t)((t-9.5)*2))*0.025f;
+        motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? thr : -thr);
+    }
+}
+
 int main(void)
 {
-    uint8_t prev_seq = 0;
+    uint32_t last_print_ms = 0;
 
     clock_init();
     timing_init();
@@ -54,32 +101,24 @@ int main(void)
     serial_init();
     canbus_init();
     uavcan_init();
-    uavcan_set_restart_cb(restart_request_handler);
     spi_init();
     drv_init();
     adc_init();
     pwm_init();
     usleep(100000);
+    inverter_init();
     motor_init();
 
-    program_init();
+    uavcan_set_restart_cb(restart_request_handler);
 
-    uint32_t last_print_ms = 0;
+    setup();
 
     // main loop
     while(1) {
         // wait specified time for adc measurement
-        struct adc_sample_s adc_sample;
-        uint8_t d_seq;
-        do {
-            encoder_read_angle();
-            adc_get_sample(&adc_sample);
-            d_seq = adc_sample.seq-prev_seq;
-        } while (d_seq < 2);
-        prev_seq = adc_sample.seq;
-        float dt = d_seq*adc_get_smp_period();
-
-        program_event_adc_sample(dt, &adc_sample);
+        if (motor_update()) {
+            loop();
+        }
         uavcan_update();
 
         uint32_t tnow_ms = millis();
