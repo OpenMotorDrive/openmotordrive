@@ -14,21 +14,21 @@ def _linear_2eq_order1_type1(x, y, t, r, eq):
 
 ode._linear_2eq_order1_type1 = _linear_2eq_order1_type1
 
-R_s, L_q, L_d, omega_e, lambda_r, u_d, u_q, t = symbols('R_s, L_q, L_d, omega_e, lambda_r, u_d, u_q, dt')
+R_s, L_q, L_d, omega_e, lambda_m, u_d, u_q, t = symbols('R_s, L_q, L_d, omega_e, lambda_m, u_d, u_q, dt')
 
 i_d_0, i_q_0 = symbols('i_d_0 i_q_0')
 i_dq_0 = Matrix([i_d_0, i_q_0])
 
 
 i_d_dot = (L_q*omega_e*i_q_0 - R_s*i_d_0 + u_d)/L_d
-i_q_dot = (-L_d*omega_e*i_d_0 - R_s*i_q_0 - lambda_r*omega_e + u_q)/L_q
+i_q_dot = (-L_d*omega_e*i_d_0 - R_s*i_q_0 - lambda_m*omega_e + u_q)/L_q
 
 i_dq_dot = Matrix([i_d_dot, i_q_dot])
 
 A = Matrix([[        -R_s/L_d, L_q*omega_e/L_d],
             [-L_d*omega_e/L_q, -R_s/L_q       ]])
 
-g = Matrix([u_d/L_d, -lambda_r*omega_e/L_q + u_q/L_q])
+g = Matrix([u_d/L_d, -lambda_m*omega_e/L_q + u_q/L_q])
 
 eigenval1 = A.eigenvects()[0][0]
 eigenvec1 = A.eigenvects()[0][2][0]
@@ -53,7 +53,7 @@ subs = {
     L_q: 63e-6,
     L_d: 43e-6,
     omega_e: 2e3,
-    lambda_r: .0027,
+    lambda_m: .0027,
     u_d: 0,
     u_q: 0,
     i_d_0: 5,

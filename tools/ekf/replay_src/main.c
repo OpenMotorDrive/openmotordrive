@@ -6,52 +6,34 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <float.h>
-#include "math_helpers.h"
+#include "helpers.h"
 #include "slip.h"
+
+#include "ekf.h"
 
 static void transform_alpha_beta_to_d_q(float theta, float alpha, float beta, float* d, float* q);
 
-static float R_s;
-static float L_d;
-static float L_q;
-static float lambda_r;
-static float J;
-static float N_P;
-static float i_noise;
-static float u_noise;
-static float alpha_load_pnoise;
+struct ekf_obj_s ekf;
+struct ekf_params_s ekf_params;
 static float encoder_theta_e_bias;
 static float encoder_delay;
-static float omega_pnoise;
-static float param1;
-static float param2;
-static float u_d;
-static float u_ce;
-static float u_dc;
-static float t_dead_ratio;
 
 static const struct {
     const char* name;
     float* ptr;
 } param_info[] = {
-    {"R_s", &R_s},
-    {"L_d", &L_d},
-    {"L_q", &L_q},
-    {"lambda_r", &lambda_r},
-    {"J", &J},
-    {"N_P", &N_P},
-    {"i_noise", &i_noise},
-    {"u_noise", &u_noise},
-    {"alpha_load_pnoise", &alpha_load_pnoise},
+    {"R_s", &ekf_params.R_s},
+    {"L_d", &ekf_params.L_d},
+    {"L_q", &ekf_params.L_q},
+    {"lambda_m", &ekf_params.lambda_m},
+    {"J", &ekf_params.J},
+    {"N_P", &ekf_params.N_P},
+    {"i_noise", &ekf_params.i_noise},
+    {"u_noise", &ekf_params.u_noise},
+    {"alpha_load_pnoise", &ekf_params.alpha_load_pnoise},
+    {"omega_pnoise", &ekf_params.omega_pnoise},
     {"encoder_theta_e_bias", &encoder_theta_e_bias},
     {"encoder_delay", &encoder_delay},
-    {"omega_pnoise", &omega_pnoise},
-    {"param1", &param1},
-    {"param2", &param2},
-    {"u_d", &u_d},
-    {"u_ce", &u_ce},
-    {"u_dc", &u_dc},
-    {"t_dead_ratio", &t_dead_ratio},
 };
 
 #define N_PARAMS (sizeof(param_info)/sizeof(param_info[0]))
@@ -99,9 +81,6 @@ static bool read_config_file(FILE* config_file) {
     }
 }
 
-#define FTYPE float
-#include "ekf.h"
-
 struct packet_s {
     uint32_t tnow_us;
     float dt;
@@ -126,7 +105,7 @@ static long double dt_sum = 0;
 static long double load_torque_sq_sum = 0;
 static long double curr_err_sq_sum = 0;
 
-static FTYPE prev_u_alpha = 0, prev_u_beta = 0;
+static float prev_u_alpha = 0, prev_u_beta = 0;
 
 static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     static bool ekf_initialized = false;
@@ -138,17 +117,21 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     pkt->encoder_theta_e = wrap_2pi(pkt->encoder_theta_e-encoder_theta_e_bias+pkt->encoder_omega_e*encoder_delay);
 
     if (!ekf_initialized) {
-        ekf_init(pkt->encoder_theta_e);
+        ekf_init(&ekf, &ekf_params, pkt->encoder_theta_e);
         ekf_initialized = true;
     } else {
-        FTYPE* x = ekf_state[ekf_idx].x;
-        FTYPE* P = ekf_state[ekf_idx].P;
+        float* x = ekf_get_state(&ekf)->x;
+        float* P = ekf_get_state(&ekf)->P;
 //         ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
 //         memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
 
         float u_alpha, u_beta;
-        ekf_predict(pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
-        ekf_update(pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
+        ekf_predict(&ekf, pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
+        ekf_update(&ekf, pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
+
+        if (P[9] < 0) {
+            P[9] = 0;
+        }
 
 //         ekf_state[ekf_idx].x[0] = pkt->encoder_omega_e/N_P;
 //         ekf_state[ekf_idx].x[1] = pkt->encoder_theta_e;
@@ -156,10 +139,10 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
 
     }
 
-    FTYPE* x = ekf_state[ekf_idx].x;
-    FTYPE* P = ekf_state[ekf_idx].P;
-    FTYPE* innov = ekf_state[ekf_idx].innov;
-    float NIS = ekf_state[ekf_idx].NIS;
+    float* x = ekf_get_state(&ekf)->x;
+    float* P = ekf_get_state(&ekf)->P;
+    float* innov = ekf_get_state(&ekf)->innov;
+    float NIS = ekf_get_state(&ekf)->NIS;
 
     float i_d_m, i_q_m;
     transform_alpha_beta_to_d_q(pkt->encoder_theta_e, pkt->i_alpha_m, pkt->i_beta_m, &i_d_m, &i_q_m);
@@ -172,7 +155,7 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     transform_alpha_beta_to_d_q(pkt->encoder_theta_e, pkt->u_alpha, pkt->u_beta, &u_d, &u_q);
 
     float theta_e_err = wrap_pi(pkt->encoder_theta_e-x[1]);
-    float omega_e_est = x[0]*N_P;
+    float omega_e_est = x[0]*ekf.params.N_P;
     float omega_e_err = pkt->encoder_omega_e-omega_e_est;
 
     load_torque_sq_sum += SQ(x[4]);
@@ -231,7 +214,7 @@ int main(int argc, char **argv) {
 
     while (1) {
         uint8_t byte = fgetc(in_file);
-        if (feof(in_file)) {
+        if (feof(in_file) || dt_sum > 11.5) {
             break;
         }
         pkt_buf[pkt_len++] = (uint8_t)byte;
@@ -280,7 +263,7 @@ int main(int argc, char **argv) {
 
     fprintf(out_file, "],\n");
 //     fprintf(out_file, "\"theta_IAE\": %9g,\n", (double)(theta_e_err_abs_sum/dt_sum));
-    fprintf(out_file, "\"N_P\": %9g,\n", N_P);
+    fprintf(out_file, "\"N_P\": %9g,\n", ekf.params.N_P);
     fprintf(out_file, "\"int_NIS\": %9g,\n", int_NIS);
     fprintf(out_file, "\"theta_ISE\": %9g,\n", ISE);
     fprintf(out_file, "\"var_int\": %9g,\n", var_int);

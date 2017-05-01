@@ -9,7 +9,7 @@ theta_pnoise 0.0
 encoder_theta_e_bias 0.0
 a 1000.0
 b 1000.0
-lambda_r 0.0027590000000000002
+lambda_m 0.0027590000000000002
 R_s 0.077008400000000005
 i_noise 0.01
 i_delay 0.0

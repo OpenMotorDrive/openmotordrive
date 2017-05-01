@@ -45,8 +45,8 @@ static struct param_entry_s* const param_entries = (struct param_entry_s*)&param
 static const struct param_info_s param_info_table[] = {
     {.name = "ESC_ENC_EBIAS",                            .default_val =    0.0, .min_val = -M_PI_F, .max_val = M_PI_F,  .type=PARAM_TYPE_FLOAT},
     {.name = "ESC_MOT_J",                                .default_val = 0.0005, .min_val = 0.00001, .max_val = 10.0,    .type=PARAM_TYPE_FLOAT},
-    {.name = "ESC_MOT_KV",                               .default_val =  360.0, .min_val =       0, .max_val = 100000,  .type=PARAM_TYPE_FLOAT},
-    {.name = "ESC_MOT_POLES",                            .default_val =    7.0, .min_val =       1, .max_val = 100,     .type=PARAM_TYPE_FLOAT},
+    {.name = "ESC_MOT_LAMBDA_M",                         .default_val =    0.0, .min_val =       0, .max_val = 10.0,    .type=PARAM_TYPE_FLOAT},
+    {.name = "ESC_MOT_POLE_PAIRS",                       .default_val =    7.0, .min_val =       1, .max_val = 100,     .type=PARAM_TYPE_FLOAT},
     {.name = "ESC_MOT_R",                                .default_val =  0.102, .min_val =       0, .max_val = 100,     .type=PARAM_TYPE_FLOAT},
     {.name = "ESC_MOT_L_D",                              .default_val =  28e-6, .min_val =    5e-6, .max_val = 1e-3,    .type=PARAM_TYPE_FLOAT},
     {.name = "ESC_MOT_L_Q",                              .default_val =  44e-6, .min_val =    5e-6, .max_val = 1e-3,    .type=PARAM_TYPE_FLOAT},
@@ -57,12 +57,13 @@ static const struct param_info_s param_info_table[] = {
     {.name = "ESC_FOC_START_CURR",                       .default_val =    3.0, .min_val =       0, .max_val = 10,      .type=PARAM_TYPE_FLOAT},
     {.name = "ESC_HW_VSENSE_DIV",                        .default_val =   20.0, .min_val =       1, .max_val = 100,     .type=PARAM_TYPE_FLOAT},
     {.name = "ESC_HW_CSA_R",                             .default_val =  0.001, .min_val =  0.0001, .max_val = .02,     .type=PARAM_TYPE_FLOAT},
-    {.name = "ESC_EKF_CURR_M_NSE",                       .default_val =   0.01, .min_val =    .001, .max_val = .05,     .type=PARAM_TYPE_FLOAT},
-    {.name = "ESC_EKF_VOLT_NSE",                         .default_val =    0.6, .min_val =     0.2, .max_val = 2,       .type=PARAM_TYPE_FLOAT},
-    {.name = "ESC_EKF_LOAD_T_PNSE",                      .default_val =    0.1, .min_val =    .001, .max_val = 1,       .type=PARAM_TYPE_FLOAT},
+    {.name = "ESC_EKF_CURR_M_NSE",                       .default_val =  0.025, .min_val =    .001, .max_val = .05,     .type=PARAM_TYPE_FLOAT},
+    {.name = "ESC_EKF_VOLT_NSE",                         .default_val =    1.5, .min_val =     0.2, .max_val = 2,       .type=PARAM_TYPE_FLOAT},
+    {.name = "ESC_EKF_ALPHA_LOAD_P_NSE",                 .default_val =  50000, .min_val =       0, .max_val = 1e6,     .type=PARAM_TYPE_FLOAT},
+    {.name = "ESC_EKF_OMEGA_P_NSE",                      .default_val =      0, .min_val =       0, .max_val = 1e6,     .type=PARAM_TYPE_FLOAT},
     {.name = "uavcan.node_id",                           .default_val =    0.0, .min_val =       0, .max_val = 127,     .type=PARAM_TYPE_INT},
     {.name = "uavcan.id-uavcan.equipment.esc-esc_index", .default_val =    0.0, .min_val =       0, .max_val = 32,      .type=PARAM_TYPE_INT},
-    {.name = "ESC_PWM_DEADTIME",                         .default_val =    0.0, .min_val =       0, .max_val = 1e-5f,   .type=PARAM_TYPE_FLOAT},
+    {.name = "ESC_PWM_DEADTIME",                         .default_val = 2.9e-7, .min_val =       0, .max_val = 1e-5,    .type=PARAM_TYPE_FLOAT},
 };
 
 #define NUM_DEFINED_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))

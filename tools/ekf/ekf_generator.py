@@ -44,22 +44,22 @@ def rk3(x_0, x_dot, dt):
 
 # Parameters
 dt  = Symbol('dt')  # Time step
-R_s = Symbol('R_s') # Stator resistance
-L_d = Symbol('L_d')   # L_d
-L_q = Symbol('L_q')   # L_q
-lambda_r = Symbol('lambda_r') # Rotor flux linkage
-N_P = Symbol('N_P') # Number of magnetic pole pairs
-J   = Symbol('J')   # Rotor inertia
-alpha_load_pnoise = Symbol('alpha_load_pnoise') # Load torque process noise
-omega_pnoise = Symbol('omega_pnoise')
+R_s = Symbol('this->params.R_s') # Stator resistance
+L_d = Symbol('this->params.L_d')   # L_d
+L_q = Symbol('this->params.L_q')   # L_q
+lambda_m = Symbol('this->params.lambda_m') # Rotor flux linkage
+N_P = Symbol('this->params.N_P') # Number of magnetic pole pairs
+J   = Symbol('this->params.J')   # Rotor inertia
+alpha_load_pnoise = Symbol('this->params.alpha_load_pnoise') # Load torque process noise
+omega_pnoise = Symbol('this->params.omega_pnoise')
 
 # Inputs
 u_ab = Matrix(symbols('u_alpha u_beta')) # Stator voltages
-u_noise = Symbol('u_noise') # Additive noise on stator voltage
+u_noise = Symbol('this->params.u_noise') # Additive noise on stator voltage
 
 # Measurements
 i_ab_m = Matrix(symbols('i_alpha_m i_beta_m')) # Stator currents observed
-i_noise = Symbol('i_noise') # Additive noise on stator currents
+i_noise = Symbol('this->params.i_noise') # Additive noise on stator currents
 
 # States
 omega_r_est, theta_e_est, i_d_est, i_q_est, T_l_est = symbols('state[0:5]')
@@ -83,11 +83,13 @@ u_dq = R_ab_dq(theta_e_est) * u_ab
 u_d = u_dq[0]
 u_q = u_dq[1]
 
-T_output = Rational(3,2) * N_P * (lambda_r + (L_d-L_q)*i_d_est) * i_q_est
+u_d_sym, u_q_sym = symbols('u_d, u_q')
+
+T_output = Rational(3,2) * N_P * (lambda_m + (L_d-L_q)*i_d_est) * i_q_est
 omega_dot = (T_output - T_l_est)/J
 
-i_d_dot = (L_q*omega_e_est*i_q_est - R_s*i_d_est + u_d)/L_d
-i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - lambda_r*omega_e_est + u_q)/L_q
+i_d_dot = (L_q*omega_e_est*i_q_est - R_s*i_d_est + u_d_sym)/L_d
+i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - lambda_m*omega_e_est + u_q_sym)/L_q
 
 x_dot = Matrix([
     omega_dot,
@@ -97,7 +99,10 @@ x_dot = Matrix([
     0
     ])
 
-f = x+dt*x_dot
+subs = {u_d_sym: u_d, u_q_sym:u_q}
+#x_dot = x_dot.xreplace(subs)
+
+f = x+dt*x_dot.xreplace(subs)
 
 assert f.shape == x.shape
 
@@ -130,6 +135,9 @@ x_p = rk3(x, x_dot, dt)
 P_p = F*P*F.T + Q
 assert P_p.shape == P.shape
 P_p = upperTriangularToVec(P_p)
+
+x_p = x_p.xreplace(subs)
+P_p = P_p.xreplace(subs)
 
 # h: predicted measurement
 h = zeros(2,1)
@@ -172,103 +180,131 @@ x_n,P_n,NIS,fuse_subx = extractSubexpressions([x_n,P_n,NIS],'subx',threshold=5)
 
 init_P = upperTriangularToVec(diag(0., math.pi**2, 0., 0., 0.**2))
 
-sys.stdout.write(
-'#pragma once\n'
-'#include <math.h>\n'
-'#include "math_helpers.h"\n'
-'\n'
-'#ifndef FTYPE\n'
-'  #define FTYPE float\n'
-'#endif\n'
-'\n'
-'struct ekf_state_s {\n'
-'    FTYPE x[5];\n'
-'    FTYPE P[15];\n'
-'    FTYPE innov[2];\n'
-'    FTYPE NIS;\n'
-'};\n'
-'\n'
-'static struct ekf_state_s ekf_state[2];\n'
-'static uint8_t ekf_idx = 0;\n'
-'\n'
-'static void ekf_init(FTYPE init_theta) {\n'
-'    FTYPE* state = ekf_state[ekf_idx].x;\n'
-'    FTYPE* cov = ekf_state[ekf_idx].P;\n'
-)
+with open(sys.argv[1],'w') as f:
+    f.write(
+    '#pragma once\n'
+    '#include <stdint.h>\n'
+    '\n'
+    'struct ekf_state_s {\n'
+    '    float x[5];\n'
+    '    float P[15];\n'
+    '    float innov[2];\n'
+    '    float NIS;\n'
+    '};\n'
+    '\n'
+    'struct ekf_params_s {\n'
+    '    float R_s;\n'
+    '    float L_d;\n'
+    '    float L_q;\n'
+    '    float lambda_m;\n'
+    '    float N_P;\n'
+    '    float J;\n'
+    '    float alpha_load_pnoise;\n'
+    '    float omega_pnoise;\n'
+    '    float u_noise;\n'
+    '    float i_noise;\n'
+    '};\n'
+    '\n'
+    'struct ekf_obj_s {\n'
+    '    struct ekf_params_s params;\n'
+    '    struct ekf_state_s state[2];\n'
+    '    uint8_t state_idx;\n'
+    '};\n'
+    '\n'
+    'void ekf_init(struct ekf_obj_s* this, struct ekf_params_s* params, float init_theta);\n'
+    'void ekf_predict(struct ekf_obj_s* this, float dt, float u_alpha, float u_beta);\n'
+    'void ekf_update(struct ekf_obj_s* this, float i_alpha_m, float i_beta_m);\n'
+    'struct ekf_state_s* ekf_get_state(struct ekf_obj_s* this);\n'
+    )
 
-for i in range(len(init_P)):
-    sys.stdout.write('    cov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(init_P[i])))
+with open(sys.argv[2],'w') as f:
+    f.write(
+    '#include "ekf.h"\n'
+    '#include <math.h>\n'
+    '#include <string.h>\n'
+    '#include "helpers.h"\n'
+    '\n'
+    'struct ekf_state_s* ekf_get_state(struct ekf_obj_s* this) {\n'
+    '    return &this->state[this->state_idx];\n'
+    '}\n'
+    'void ekf_init(struct ekf_obj_s* this, struct ekf_params_s* params, float init_theta) {\n'
+    '    float* state = this->state[this->state_idx].x;\n'
+    '    float* cov = this->state[this->state_idx].P;\n'
+    '    memset(this, 0, sizeof(*this));\n'
+    '    memcpy(&this->params, params, sizeof(this->params));\n'
+    )
 
-sys.stdout.write(
-'    memset(&ekf_state[ekf_idx], 0, sizeof(ekf_state[ekf_idx]));\n'
-'    state[1] = init_theta;\n'
-'}\n'
-'\n'
-)
+    for i in range(len(init_P)):
+        f.write('    cov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(init_P[i])))
 
-sys.stdout.write('static FTYPE subx[%u];\n' % (max(len(pred_subx),len(fuse_subx)),))
-sys.stdout.write(
-'static void ekf_predict(FTYPE dt, FTYPE i_alpha_m, FTYPE i_beta_m, FTYPE u_alpha, FTYPE u_beta) {\n'
-'    uint8_t next_ekf_idx = (ekf_idx+1)%2;\n'
-'    FTYPE* state = ekf_state[ekf_idx].x;\n'
-'    FTYPE* cov = ekf_state[ekf_idx].P;\n'
-'    FTYPE* state_n = ekf_state[next_ekf_idx].x;\n'
-'    FTYPE* cov_n = ekf_state[next_ekf_idx].P;\n'
-)
+    f.write(
+    '    state[1] = init_theta;\n'
+    '}\n'
+    '\n'
+    )
 
-sys.stdout.write('    // %u operations\n' % (count_ops(x_p)+count_ops(P_p)+count_ops(pred_subx),))
+    f.write('static float subx[%u];\n' % (max(len(pred_subx),len(fuse_subx)),))
+    f.write(
+    'void ekf_predict(struct ekf_obj_s* this, float dt, float u_alpha, float u_beta) {\n'
+    '    uint8_t next_state_idx = (this->state_idx+1)%2;\n'
+    '    float* state = this->state[this->state_idx].x;\n'
+    '    float* cov = this->state[this->state_idx].P;\n'
+    '    float* state_n = this->state[next_state_idx].x;\n'
+    '    float* cov_n = this->state[next_state_idx].P;\n'
+    )
 
-for i in range(len(pred_subx)):
-    sys.stdout.write('    %s = %s;\n' % (pred_subx[i][0], CCodePrinter_float().doprint(pred_subx[i][1])))
+    f.write('    // %u operations\n' % (count_ops(x_p)+count_ops(P_p)+count_ops(pred_subx),))
 
-for i in range(len(x_p)):
-    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_p[i])))
+    for i in range(len(pred_subx)):
+        f.write('    %s = %s;\n' % (pred_subx[i][0], CCodePrinter_float().doprint(pred_subx[i][1])))
 
-for i in range(len(P_p)):
-    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_p[i])))
+    for i in range(len(x_p)):
+        f.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_p[i])))
 
-sys.stdout.write(
-'\n'
-'    ekf_state[next_ekf_idx].NIS = ekf_state[ekf_idx].NIS;\n'
-'    state_n[1] = wrap_2pi(state_n[1]);\n'
-'    ekf_idx = next_ekf_idx;\n'
-'}\n'
-)
+    for i in range(len(P_p)):
+        f.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_p[i])))
 
-sys.stdout.write(
-'\n'
-'static void ekf_update(FTYPE dt, FTYPE i_alpha_m, FTYPE i_beta_m, FTYPE u_alpha, FTYPE u_beta) {\n'
-'    uint8_t next_ekf_idx = (ekf_idx+1)%2;\n'
-'    FTYPE* state = ekf_state[ekf_idx].x;\n'
-'    FTYPE* cov = ekf_state[ekf_idx].P;\n'
-'    FTYPE* state_n = ekf_state[next_ekf_idx].x;\n'
-'    FTYPE* cov_n = ekf_state[next_ekf_idx].P;\n'
-'    FTYPE* innov = ekf_state[next_ekf_idx].innov;\n'
-'    FTYPE* NIS = &ekf_state[next_ekf_idx].NIS;\n'
-'\n'
-)
+    f.write(
+    '\n'
+    '    state_n[1] = wrap_2pi(state_n[1]);\n'
+    '    this->state_idx = next_state_idx;\n'
+    '}\n'
+    )
 
-sys.stdout.write('    // %u operations\n' % (count_ops(x_n)+count_ops(P_n)+count_ops(fuse_subx),))
-for i in range(len(fuse_subx)):
-    sys.stdout.write('    %s = %s;\n' % (fuse_subx[i][0], CCodePrinter_float().doprint(fuse_subx[i][1])))
+    f.write(
+    '\n'
+    'void ekf_update(struct ekf_obj_s* this, float i_alpha_m, float i_beta_m) {\n'
+    '    uint8_t next_state_idx = (this->state_idx+1)%2;\n'
+    '    float* state = this->state[this->state_idx].x;\n'
+    '    float* cov = this->state[this->state_idx].P;\n'
+    '    float* state_n = this->state[next_state_idx].x;\n'
+    '    float* cov_n = this->state[next_state_idx].P;\n'
+    '    float* innov = this->state[next_state_idx].innov;\n'
+    '    float* NIS = &this->state[next_state_idx].NIS;\n'
+    '\n'
+    )
 
-for i in range(len(x_n)):
-    sys.stdout.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_n[i])))
+    f.write('    // %u operations\n' % (count_ops(x_n)+count_ops(P_n)+count_ops(fuse_subx),))
+    for i in range(len(fuse_subx)):
+        f.write('    %s = %s;\n' % (fuse_subx[i][0], CCodePrinter_float().doprint(fuse_subx[i][1])))
 
-for i in range(len(P_n)):
-    sys.stdout.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_n[i])))
+    for i in range(len(x_n)):
+        f.write('    state_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(x_n[i])))
 
-for i in range(len(y)):
-    sys.stdout.write('    innov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(y[i])))
+    for i in range(len(P_n)):
+        f.write('    cov_n[%u] = %s;\n' % (i, CCodePrinter_float().doprint(P_n[i])))
 
-sys.stdout.write('    *NIS = %s;\n' % (CCodePrinter_float().doprint(NIS[0]),))
+    for i in range(len(y)):
+        f.write('    innov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(y[i])))
 
-sys.stdout.write(
-'\n'
-'    state_n[1] = wrap_2pi(state_n[1]);\n'
-'    ekf_idx = next_ekf_idx;\n'
-'}\n'
-)
+    f.write('    *NIS = %s;\n' % (CCodePrinter_float().doprint(NIS[0]),))
+
+    f.write(
+    '\n'
+    '    state_n[1] = wrap_2pi(state_n[1]);\n'
+    '    this->state_idx = next_state_idx;\n'
+    '}\n'
+    )
 
 
 

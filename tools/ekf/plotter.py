@@ -81,7 +81,7 @@ with open(sys.argv[1], 'rb') as jsonfile:
     plt.plot(t, i_q_m, color='g')
     plt.plot(t, u_q, color='y')
     plt.subplot(4,2,5,sharex=ax1)
-    plt.title('abc current')
+    plt.title('load torque')
     plt.fill_between(t,T_l_est_max,T_l_est_min,facecolor='b',alpha=.25)
     plt.plot(t, T_l_est, color='b')
     plt.subplot(4,2,6,sharex=ax1)
