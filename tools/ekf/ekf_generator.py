@@ -91,6 +91,9 @@ omega_dot = (T_output - T_l_est)/J
 i_d_dot = (L_q*omega_e_est*i_q_est - R_s*i_d_est + u_d_sym)/L_d
 i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - lambda_m*omega_e_est + u_q_sym)/L_q
 
+#print solve(Matrix([i_d_dot, i_q_dot]).subs({i_q_est:Symbol("i_q"),i_d_est:Symbol("i_d"),omega_e_est:Symbol("omega_e"),L_d:Symbol("L_d"),L_q:Symbol("L_q"),lambda_m:Symbol("lambda_m"),R_s:Symbol("R_s"),N_P:Symbol("N_P")}), [u_d_sym, u_q_sym])
+#sys.exit()
+
 x_dot = Matrix([
     omega_dot,
     omega_e_est,

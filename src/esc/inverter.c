@@ -148,7 +148,7 @@ static void new_adc_data(void)
     update_sense_data();
 
     uint32_t dt_us = sense_data[sense_data_idx].t_us-phase_output[phase_output_idx].t_us;
-    float dt = dt_us*1e-6f + pwm_get_period()/4;
+    float dt = dt_us*1e-6f + pwm_get_period()/2;
     if (!phase_output[phase_output_idx].enabled || dt > 0.01f) {
         pwm_set_phase_duty(0.5, 0.5, 0.5);
         return;

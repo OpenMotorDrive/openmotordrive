@@ -321,6 +321,9 @@ static void run_foc(void)
 
     id_pid_param.i_ref = constrain_float(params.start_current-fabsf(motor_state.elec_omega)/60, 0.0f, params.start_current);
 
+    id_pid_param.ff = 0;//(-params.L_q*motor_state.i_q*motor_state.elec_omega);
+    iq_pid_param.ff = 0;//(params.L_d*motor_state.i_d*motor_state.elec_omega + params.lambda_m*motor_state.elec_omega);
+
     if (overmodulation) {
         id_pid_param.output_limit = inverter_sense_data.v_bus*2.0f/3.0f;
     } else {

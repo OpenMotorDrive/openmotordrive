@@ -44,20 +44,18 @@ static bool restart_request_handler(void)
     return true;
 }
 
-
 static uint32_t tbegin_us;
 static bool waiting_to_start = false;
 static bool started = false;
 static float t_max = 20.0f;
 
-static void setup(void)
+static void test_steps_and_reversals_setup(void)
 {
     tbegin_us = micros();
-//     serial_send_dma(1, "\x55");
-//     motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
+    serial_send_dma(1, "\x55");
 }
 
-static void loop(void)
+static void test_steps_and_reversals_loop(void)
 {
     if (motor_get_mode() == MOTOR_MODE_ENCODER_CALIBRATION) {
         return;
@@ -89,6 +87,58 @@ static void loop(void)
         float thr = ((uint32_t)((t-9.5)*2))*0.025f;
         motor_set_duty_ref((((uint32_t)(t*4))%2)==0 ? thr : -thr);
     }
+}
+
+static uint8_t esc_index;
+static uint32_t last_command_us;
+static uint32_t last_status_us;
+
+static void handle_uavcan_esc_rawcommand(uint8_t len, int16_t* commands) {
+    const float min_duty = 0.08;
+    if (esc_index < len) {
+        if (commands[esc_index] == 0) {
+            motor_set_mode(MOTOR_MODE_DISABLED);
+        } else {
+            motor_set_mode(MOTOR_MODE_FOC_DUTY);
+            if (commands[esc_index] > 0) {
+                motor_set_duty_ref(commands[esc_index]/8191.0f*(1.0f-min_duty)+min_duty);
+            } else {
+                motor_set_duty_ref(commands[esc_index]/8191.0f*(1.0f-min_duty)-min_duty);
+            }
+        }
+        last_command_us = micros();
+    }
+}
+
+static void uavcan_esc_setup(void)
+{
+    esc_index = (uint8_t)*param_retrieve_by_name("uavcan.id-uavcan.equipment.esc-esc_index");
+    uavcan_set_esc_rawcommand_cb(handle_uavcan_esc_rawcommand);
+
+    motor_set_mode(MOTOR_MODE_DISABLED);
+}
+
+static void uavcan_esc_loop(void)
+{
+    uint32_t tnow_us = micros();
+
+    if (tnow_us-last_command_us > 0.5*1e6) {
+        motor_set_mode(MOTOR_MODE_DISABLED);
+    }
+
+    if (tnow_us - last_status_us > 0.25*1e6) {
+        // TODO: send ESC status message
+    }
+}
+
+static void setup(void)
+{
+    uavcan_esc_setup();
+}
+
+static void loop(void)
+{
+    uavcan_esc_loop();
 }
 
 int main(void)

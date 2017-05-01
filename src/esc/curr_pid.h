@@ -20,6 +20,7 @@
 struct curr_pid_param_s {
     float i_ref;
     float i_meas;
+    float ff;
     float dt;
     float output_limit;
     float K_R;

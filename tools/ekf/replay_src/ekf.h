@@ -28,6 +28,6 @@ struct ekf_obj_s {
 };
 
 void ekf_init(struct ekf_obj_s* this, struct ekf_params_s* params, float init_theta);
-void ekf_predict(struct ekf_obj_s* this, float dt, float i_alpha_m, float i_beta_m, float u_alpha, float u_beta);
-void ekf_update(struct ekf_obj_s* this, float dt, float i_alpha_m, float i_beta_m, float u_alpha, float u_beta);
+void ekf_predict(struct ekf_obj_s* this, float dt, float u_alpha, float u_beta);
+void ekf_update(struct ekf_obj_s* this, float i_alpha_m, float i_beta_m);
 struct ekf_state_s* ekf_get_state(struct ekf_obj_s* this);

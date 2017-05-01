@@ -126,8 +126,8 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
 //         memset(ekf_state[ekf_idx].P, 0, sizeof(ekf_state[ekf_idx].P));
 
         float u_alpha, u_beta;
-        ekf_predict(&ekf, pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
-        ekf_update(&ekf, pkt->dt, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta);
+        ekf_predict(&ekf, pkt->dt, pkt->u_alpha, pkt->u_beta);
+        ekf_update(&ekf, pkt->i_alpha_m, pkt->i_beta_m);
 
         if (P[9] < 0) {
             P[9] = 0;
@@ -214,7 +214,7 @@ int main(int argc, char **argv) {
 
     while (1) {
         uint8_t byte = fgetc(in_file);
-        if (feof(in_file) || dt_sum > 11.5) {
+        if (feof(in_file) /*|| dt_sum > 5.75*/) {
             break;
         }
         pkt_buf[pkt_len++] = (uint8_t)byte;

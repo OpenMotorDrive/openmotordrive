@@ -51,10 +51,10 @@ def objective_func(x):
 
     return obj
 
-with open('replay_src/ekf.h', 'wb') as f:
-    f.write(check_output(["python", "ekf_generator.py"]))
 
-call(["gcc", "-DNO_BULK_DATA", "-fno-trapping-math", "-fno-signaling-nans", "replay_src/main.c", "-lm"])
+check_output(["python", "ekf_generator.py", "replay_src/ekf.h", "replay_src/ekf.c"])
+
+call(["gcc", "-DNO_BULK_DATA", "-fno-trapping-math", "-fno-signaling-nans", "replay_src/main.c", "replay_src/ekf.c", "-lm"])
 
 # load initial parameters from file
 init_params = {}
@@ -79,7 +79,7 @@ param_bounds = {
     "omega_pnoise":(0,1e6)
     }
 
-opt_param_names = ["L_d", "L_q", "R_s"]
+opt_param_names = ["J"]
 objective="EVERYTHING"
 opt_params = [init_params[x] for x in opt_param_names]
 opt_param_bounds = [param_bounds[x] for x in opt_param_names]

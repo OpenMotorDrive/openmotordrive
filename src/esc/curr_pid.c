@@ -26,6 +26,7 @@ void curr_pid_run(struct curr_pid_param_s *param, struct curr_pid_state_s *state
     }
 
     state->output  = param->i_ref * param->K_R;
+    state->output += param->ff;
     state->output += err * param->K_P;
     state->output += state->integrator;
 
