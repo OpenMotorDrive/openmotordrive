@@ -42,3 +42,5 @@ void motor_print_data(void);
 void motor_update_ekf(void);
 void motor_set_omega_ref(float val);
 void motor_set_duty_ref(float val);
+bool motor_get_saturation_flag(void);
+float motor_get_dt(void);

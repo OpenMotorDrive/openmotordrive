@@ -64,6 +64,11 @@ static const struct param_info_s param_info_table[] = {
     {.name = "uavcan.node_id",                           .default_val =    0.0, .min_val =       0, .max_val = 127,     .type=PARAM_TYPE_INT},
     {.name = "uavcan.id-uavcan.equipment.esc-esc_index", .default_val =    0.0, .min_val =       0, .max_val = 32,      .type=PARAM_TYPE_INT},
     {.name = "ESC_PWM_DEADTIME",                         .default_val = 2.9e-7, .min_val =       0, .max_val = 1e-5,    .type=PARAM_TYPE_FLOAT},
+    {.name = "ESC_CAL_ENCODER_ON_BOOT",                  .default_val = 0,      .min_val =       0, .max_val = 1,       .type=PARAM_TYPE_INT},
+    {.name = "ESC_PROGRAM_SELECT",                       .default_val = 0,      .min_val =       0, .max_val = 3,       .type=PARAM_TYPE_INT},
+    {.name = "GIMBAL_AXIS",                              .default_val = 0,      .min_val =       0, .max_val = 2,       .type=PARAM_TYPE_INT},
+    {.name = "GIMBAL_K_P",                               .default_val = 0,      .min_val =       0, .max_val = 1e6,     .type=PARAM_TYPE_FLOAT},
+    {.name = "GIMBAL_K_I",                               .default_val = 0,      .min_val =       0, .max_val = 1e6,     .type=PARAM_TYPE_FLOAT},
 };
 
 #define NUM_DEFINED_PARAMS (sizeof(param_info_table)/sizeof(*param_info_table))

@@ -72,6 +72,7 @@
 
 static restart_handler_ptr restart_cb;
 static esc_rawcommand_handler_ptr esc_rawcommand_cb;
+static unhandled_can_frame_handler_ptr unhandled_can_frame_cb;
 
 static CanardInstance canard;
 static uint8_t canard_memory_pool[1024];
@@ -103,7 +104,6 @@ static void allocation_timer_expired(void);
 static void allocation_start_request_timer(void);
 static void allocation_start_followup_timer(void);
 
-
 void uavcan_init(void)
 {
     desig_get_unique_id((uint32_t*)&node_unique_id[0]);
@@ -127,12 +127,16 @@ void uavcan_update(void)
     struct canbus_msg msg;
     const uint64_t timestamp = micros();
     if (canbus_recv_message(&msg)) {
-        rx_frame.id = msg.id & CANARD_CAN_EXT_ID_MASK;
-        if (msg.ide) rx_frame.id |= CANARD_CAN_FRAME_EFF;
-        if (msg.rtr) rx_frame.id |= CANARD_CAN_FRAME_RTR;
-        rx_frame.data_len = msg.dlc;
-        memcpy(rx_frame.data, msg.data, 8);
-        canardHandleRxFrame(&canard, &rx_frame, timestamp);
+        if (msg.ide) {
+            rx_frame.id = msg.id & CANARD_CAN_EXT_ID_MASK;
+            rx_frame.id |= CANARD_CAN_FRAME_EFF;
+            if (msg.rtr) rx_frame.id |= CANARD_CAN_FRAME_RTR;
+            rx_frame.data_len = msg.dlc;
+            memcpy(rx_frame.data, msg.data, 8);
+            canardHandleRxFrame(&canard, &rx_frame, timestamp);
+        } else if (unhandled_can_frame_cb) {
+            unhandled_can_frame_cb(msg);
+        }
     }
 
     // transmit
@@ -162,6 +166,11 @@ void uavcan_set_esc_rawcommand_cb(esc_rawcommand_handler_ptr cb)
 void uavcan_set_restart_cb(restart_handler_ptr cb)
 {
     restart_cb = cb;
+}
+
+void uavcan_set_unhandled_can_frame_cb(unhandled_can_frame_handler_ptr cb)
+{
+    unhandled_can_frame_cb = cb;
 }
 
 void uavcan_send_debug_key_value(const char* name, float val)

@@ -130,6 +130,12 @@ static void retrieve_encoder_measurement(void)
     encoder_read_angle();
     encoder_state.mech_theta = wrap_2pi(encoder_get_angle_rad());
     encoder_state.elec_theta = wrap_2pi(encoder_state.mech_theta*params.mot_n_pole_pairs-params.elec_theta_bias);
+
+    static uint32_t last_print_us;
+    if (micros() - last_print_us > 100000) {
+        last_print_us = micros();
+    }
+
 }
 
 void motor_init(void)
@@ -288,6 +294,16 @@ float motor_get_iq_meas(void)
     return motor_state.i_q;
 }
 
+bool motor_get_saturation_flag(void)
+{
+    return iq_pid_state.sat_pos || iq_pid_state.sat_neg || id_pid_state.sat_pos || id_pid_state.sat_neg;
+}
+
+float motor_get_dt(void)
+{
+    return dt;
+}
+
 enum motor_mode_t motor_get_mode(void)
 {
     return motor_mode;
@@ -382,7 +398,7 @@ static void run_encoder_calibration(void)
 
             *param_retrieve_by_name("ESC_ENC_EBIAS") = params.elec_theta_bias;
             *param_retrieve_by_name("ESC_MOT_REVERSE") = params.reverse;
-            *param_retrieve_by_name("ESC_MOT_POLES") = params.mot_n_pole_pairs;
+            *param_retrieve_by_name("ESC_MOT_POLE_PAIRS") = params.mot_n_pole_pairs;
             param_write();
 //             motor_set_mode(MOTOR_MODE_DISABLED);
             encoder_cal_state.step = 3;

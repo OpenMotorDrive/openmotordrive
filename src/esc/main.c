@@ -131,14 +131,106 @@ static void uavcan_esc_loop(void)
     }
 }
 
+static uint8_t gimbal_axis;
+static uint32_t gimbal_last_command_us;
+static float gimbal_rate_error;
+static float gimbal_kP;
+static float gimbal_kI;
+static float gimbal_integrator;
+
+struct gimbal_rate_error_msg_s {
+    int16_t rate_error_int[3];
+};
+
+static void gimbal_handle_canbus_msg(struct canbus_msg msg)
+{
+    if (msg.id == 42 && msg.dlc == sizeof(struct gimbal_rate_error_msg_s)) {
+        struct gimbal_rate_error_msg_s* msg_decoded = (struct gimbal_rate_error_msg_s*)msg.data;
+        gimbal_last_command_us = micros();
+        gimbal_rate_error = ((float)msg_decoded->rate_error_int[gimbal_axis])*500.0/32767.0;
+
+        // respond with joint angle
+        float joint_angle = encoder_get_angle_rad();
+        struct canbus_msg resp_msg;
+        resp_msg.id = 50+gimbal_axis;
+        resp_msg.ide = false;
+        resp_msg.rtr = false;
+        memcpy(resp_msg.data, &joint_angle, sizeof(joint_angle));
+        resp_msg.dlc = sizeof(joint_angle);
+    }
+}
+
+static void gimbal_setup(void)
+{
+    gimbal_axis = (uint8_t)*param_retrieve_by_name("GIMBAL_AXIS");
+    gimbal_kP = *param_retrieve_by_name("GIMBAL_K_P");
+    gimbal_kI = *param_retrieve_by_name("GIMBAL_K_I");
+
+    uavcan_set_unhandled_can_frame_cb(gimbal_handle_canbus_msg);
+}
+
+static void gimbal_loop(void)
+{
+    uint32_t tnow_us = micros();
+
+    if (tnow_us-gimbal_last_command_us > 0.5*1e6) {
+        motor_set_mode(MOTOR_MODE_DISABLED);
+    } else {
+        motor_set_mode(MOTOR_MODE_FOC_CURRENT);
+
+        if (!motor_get_saturation_flag()) {
+            gimbal_integrator += gimbal_kI*gimbal_rate_error*motor_get_dt();
+        }
+
+        motor_set_iq_ref(gimbal_kP * gimbal_rate_error + gimbal_integrator);
+    }
+}
+
+enum program_t {
+    PROGRAM_NONE = 0,
+    PROGRAM_UAVCAN_ESC,
+    PROGRAM_ENCODER_CALIBRATION,
+    PROGRAM_GIMBAL,
+};
+
+static enum program_t program_selected;
+
 static void setup(void)
 {
-    uavcan_esc_setup();
+    float* program_sel_param = param_retrieve_by_name("ESC_PROGRAM_SELECT");
+    program_selected = (enum program_t)*program_sel_param;
+
+    switch (program_selected) {
+        case PROGRAM_NONE:
+            break;
+        case PROGRAM_UAVCAN_ESC:
+            uavcan_esc_setup();
+            break;
+        case PROGRAM_ENCODER_CALIBRATION:
+            motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
+            *program_sel_param = PROGRAM_NONE;
+            break;
+        case PROGRAM_GIMBAL:
+            gimbal_setup();
+            break;
+    }
 }
 
 static void loop(void)
 {
-    uavcan_esc_loop();
+    switch (program_selected) {
+        case PROGRAM_NONE:
+            break;
+        case PROGRAM_UAVCAN_ESC:
+            uavcan_esc_loop();
+            break;
+        case PROGRAM_ENCODER_CALIBRATION:
+            break;
+        case PROGRAM_GIMBAL:
+            gimbal_loop();
+            break;
+    }
+
 }
 
 int main(void)
