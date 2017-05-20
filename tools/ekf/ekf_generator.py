@@ -49,7 +49,7 @@ L_d = Symbol('this->params.L_d')   # L_d
 L_q = Symbol('this->params.L_q')   # L_q
 lambda_m = Symbol('this->params.lambda_m') # Rotor flux linkage
 N_P = Symbol('this->params.N_P') # Number of magnetic pole pairs
-J   = Symbol('this->params.J')   # Rotor inertia
+init_J   = Symbol('this->params.J')   # Rotor inertia
 alpha_load_pnoise = Symbol('this->params.alpha_load_pnoise') # Load torque process noise
 omega_pnoise = Symbol('this->params.omega_pnoise')
 
@@ -62,8 +62,8 @@ i_ab_m = Matrix(symbols('i_alpha_m i_beta_m')) # Stator currents observed
 i_noise = Symbol('this->params.i_noise') # Additive noise on stator currents
 
 # States
-omega_r_est, theta_e_est, i_d_est, i_q_est, T_l_est = symbols('state[0:5]')
-x = toVec(omega_r_est, theta_e_est, i_d_est, i_q_est, T_l_est)
+omega_r_est, theta_e_est, i_d_est, i_q_est, T_l_est, J_inv_est = symbols('state[0:6]')
+x = toVec(omega_r_est, theta_e_est, i_d_est, i_q_est, T_l_est, J_inv_est)
 nStates = len(x)
 
 # Covariance matrix
@@ -86,7 +86,7 @@ u_q = u_dq[1]
 u_d_sym, u_q_sym = symbols('u_d, u_q')
 
 T_output = Rational(3,2) * N_P * (lambda_m + (L_d-L_q)*i_d_est) * i_q_est
-omega_dot = (T_output - T_l_est)/J
+omega_dot = (T_output - T_l_est)*J_inv_est
 
 i_d_dot = (L_q*omega_e_est*i_q_est - R_s*i_d_est + u_d_sym)/L_d
 i_q_dot = (-L_d*omega_e_est*i_d_est - R_s*i_q_est - lambda_m*omega_e_est + u_q_sym)/L_q
@@ -99,6 +99,7 @@ x_dot = Matrix([
     omega_e_est,
     i_d_dot,
     i_q_dot,
+    0,
     0
     ])
 
@@ -127,7 +128,7 @@ Q_u = diag(*w_u_sigma.multiply_elementwise(w_u_sigma))
 # Q: covariance of additive noise on x
 Q = G*Q_u*G.T
 
-pnoise_sigma = Matrix([omega_pnoise, 0, 0, 0, alpha_load_pnoise*J])*dt
+pnoise_sigma = Matrix([omega_pnoise, 0, 0, 0, alpha_load_pnoise/J_inv_est, J_inv_est*0.01])*dt
 
 Q += diag(*pnoise_sigma.multiply_elementwise(pnoise_sigma))
 
@@ -181,16 +182,18 @@ x_p,P_p,pred_subx = extractSubexpressions([x_p,P_p],'subx',threshold=5)
 
 x_n,P_n,NIS,fuse_subx = extractSubexpressions([x_n,P_n,NIS],'subx',threshold=5)
 
-init_P = upperTriangularToVec(diag(0., math.pi**2, 0., 0., 0.**2))
+init_x = Matrix([0., Symbol('init_theta'), 0., 0., 0., 1/init_J])
+init_P = upperTriangularToVec(diag(0., math.pi**2, 0., 0., 0.**2, (1/init_J*0.5)**2))
 
 with open(sys.argv[1],'w') as f:
     f.write(
     '#pragma once\n'
     '#include <stdint.h>\n'
     '\n'
-    'struct ekf_state_s {\n'
-    '    float x[5];\n'
-    '    float P[15];\n'
+    'struct ekf_state_s {\n')
+    f.write('    float x[%u];\n' % (len(x_p),))
+    f.write('    float P[%u];\n' % (len(P_n),))
+    f.write(
     '    float innov[2];\n'
     '    float NIS;\n'
     '};\n'
@@ -237,11 +240,13 @@ with open(sys.argv[2],'w') as f:
     '    memcpy(&this->params, params, sizeof(this->params));\n'
     )
 
+    for i in range(len(init_x)):
+        f.write('    state[%u] = %s;\n' % (i, CCodePrinter_float().doprint(init_x[i])))
+
     for i in range(len(init_P)):
         f.write('    cov[%u] = %s;\n' % (i, CCodePrinter_float().doprint(init_P[i])))
 
     f.write(
-    '    state[1] = init_theta;\n'
     '}\n'
     '\n'
     )

@@ -2,8 +2,8 @@
 #include <stdint.h>
 
 struct ekf_state_s {
-    float x[5];
-    float P[15];
+    float x[6];
+    float P[21];
     float innov[2];
     float NIS;
 };

@@ -30,16 +30,17 @@ with open(sys.argv[1], 'rb') as jsonfile:
     i_d_est = state[:,2]
     i_q_est = state[:,3]
     T_l_est = state[:,4]
+    J_est = 1/state[:,5]
     theta_e_err = np.array([x['theta_e_err'] for x in data])
     omega_e_est = np.array([x['omega_e_est'] for x in data])
     omega_e_err = np.array([x['omega_e_err'] for x in data])
     NIS = np.array([x['NIS'] for x in data])
 
     omega_e_est_sigma = np.sqrt(np.array([x[0] for x in cov]))*N_P
-    theta_e_est_sigma = np.sqrt(np.array([x[5] for x in cov]))
-    i_d_est_sigma = np.sqrt(np.array([x[9] for x in cov]))
-    i_q_est_sigma = np.sqrt(np.array([x[12] for x in cov]))
-    T_l_est_sigma = np.sqrt(np.array([x[14] for x in cov]))
+    theta_e_est_sigma = np.sqrt(np.array([x[6] for x in cov]))
+    i_d_est_sigma = np.sqrt(np.array([x[11] for x in cov]))
+    i_q_est_sigma = np.sqrt(np.array([x[15] for x in cov]))
+    T_l_est_sigma = np.sqrt(np.array([x[18] for x in cov]))
 
     omega_e_est_max = omega_e_est+omega_e_est_sigma
     omega_e_est_min = omega_e_est-omega_e_est_sigma
@@ -96,5 +97,8 @@ with open(sys.argv[1], 'rb') as jsonfile:
     plt.fill_between(t,omega_e_est_sigma,-omega_e_est_sigma,facecolor='b',alpha=.25)
     plt.plot(t, omega_e_err)
     #plt.savefig('out.png', dpi=200)
+
+    plt.figure(2)
+    plt.plot(t, J_est)
 
     plt.show()

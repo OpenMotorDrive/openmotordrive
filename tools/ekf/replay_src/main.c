@@ -129,8 +129,23 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
         ekf_predict(&ekf, pkt->dt, pkt->u_alpha, pkt->u_beta);
         ekf_update(&ekf, pkt->i_alpha_m, pkt->i_beta_m);
 
-        if (P[9] < 0) {
-            P[9] = 0;
+        if (P[0] < 0) {
+            P[0] = 0;
+        }
+        if (P[6] < 0) {
+            P[6] = 0;
+        }
+        if (P[11] < 0) {
+            P[11] = 0;
+        }
+        if (P[15] < 0) {
+            P[15] = 0;
+        }
+        if (P[18] < 0) {
+            P[18] = 0;
+        }
+        if (P[20] < 0) {
+            P[20] = 0;
         }
 
 //         ekf_state[ekf_idx].x[0] = pkt->encoder_omega_e/N_P;
@@ -166,12 +181,12 @@ static void handle_decoded_pkt(uint8_t len, uint8_t* buf, FILE* out_file) {
     NIS_sum += NIS;
 //         variance_sum += P[0];
 //         variance_sum += P[5];
-    variance_sum += P[9]+P[12];
+    variance_sum += P[11]+P[15];
 //         variance_sum += P[14];
     dt_sum += pkt->dt;
 
 #ifndef NO_BULK_DATA
-    fprintf(out_file, "{\"t_us\":%u, \"dt\":%9g, \"encoder_theta_e\":%9g, \"encoder_omega_e\":%9g, \"i_alpha_m\":%9g, \"i_beta_m\":%9g, \"u_alpha\":%9g, \"u_beta\":%9g, \"x\":[%9g, %9g, %9g, %9g, %9g], \"P\": [%9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g], \"theta_e_err\":%9g, \"omega_e_est\":%9g, \"omega_e_err\":%9g, \"i_d_m\": %9g, \"i_q_m\": %9g, \"NIS\": %9g, \"u_d\": %9g, \"u_q\": %9g}", pkt->tnow_us, pkt->dt, pkt->encoder_theta_e, pkt->encoder_omega_e, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta, x[0], x[1], x[2], x[3], x[4], P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7], P[8], P[9], P[10], P[11], P[12], P[13], P[14], theta_e_err, omega_e_est, omega_e_err, i_d_m, i_q_m, NIS, u_d, u_q);
+    fprintf(out_file, "{\"t_us\":%u, \"dt\":%9g, \"encoder_theta_e\":%9g, \"encoder_omega_e\":%9g, \"i_alpha_m\":%9g, \"i_beta_m\":%9g, \"u_alpha\":%9g, \"u_beta\":%9g, \"x\":[%9g, %9g, %9g, %9g, %9g, %9g], \"P\": [%9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g, %9g], \"theta_e_err\":%9g, \"omega_e_est\":%9g, \"omega_e_err\":%9g, \"i_d_m\": %9g, \"i_q_m\": %9g, \"NIS\": %9g, \"u_d\": %9g, \"u_q\": %9g}", pkt->tnow_us, pkt->dt, pkt->encoder_theta_e, pkt->encoder_omega_e, pkt->i_alpha_m, pkt->i_beta_m, pkt->u_alpha, pkt->u_beta, x[0], x[1], x[2], x[3], x[4], x[5], P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7], P[8], P[9], P[10], P[11], P[12], P[13], P[14], P[15], P[16], P[17], P[18], P[19], P[20], theta_e_err, omega_e_est, omega_e_err, i_d_m, i_q_m, NIS, u_d, u_q);
 #endif
 }
 

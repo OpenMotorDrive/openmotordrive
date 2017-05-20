@@ -1,12 +1,12 @@
 u_noise    1.5866
 L_q   4.2e-05
 alpha_load_pnoise     30000
-J 0.00026
+J 0.0001
 R_s      0.07
 N_P         7
 i_noise 0.0218658
 encoder_delay -4.31991e-05
 L_d   2.8e-05
 lambda_m   0.00276
-omega_pnoise   68.9562
+omega_pnoise   500
 encoder_theta_e_bias -0.0667776
