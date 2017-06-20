@@ -21,7 +21,7 @@
 #define M_SQRT2_F ((float)M_SQRT2)
 #define M_PI_F ((float)M_PI)
 
-#define SQ(__X) (__X*__X)
+#define SQ(__X) ((__X)*(__X))
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
