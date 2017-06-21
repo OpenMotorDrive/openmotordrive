@@ -204,8 +204,6 @@ bool motor_update(void)
                 duty_ref = duty_tgt;
             }
 
-
-
             motor_set_iq_ref((duty_ref*inverter_sense_data.v_bus/sqrtf(3.0) - motor_state.elec_omega*params.lambda_m)/params.R_s);
             run_foc();
             break;

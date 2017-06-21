@@ -54,6 +54,10 @@
 #define UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_ID                          16370
 #define UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_SIGNATURE                   0xe02f25d6e0c98ae0
 
+#define UAVCAN_DEBUG_LOGMESSAGE_MESSAGE_MAX_SIZE                    BIT_LEN_TO_SIZE(983)
+#define UAVCAN_DEBUG_LOGMESSAGE_DATA_TYPE_ID                        16383
+#define UAVCAN_DEBUG_LOGMESSAGE_DATA_TYPE_SIGNATURE                 0xd654a48e0c049d75
+
 #define UAVCAN_ESC_RAWCOMMAND_MESSAGE_MAX_SIZE                      BIT_LEN_TO_SIZE(285)
 #define UAVCAN_ESC_RAWCOMMAND_DATA_TYPE_ID                          1030
 #define UAVCAN_ESC_RAWCOMMAND_DATA_TYPE_SIGNATURE                   0x217f5c87d7ec951d
@@ -181,6 +185,29 @@ void uavcan_send_debug_key_value(const char* name, float val)
     memcpy(&msg_buf[4], name, name_len);
     uint8_t transfer_id;
     canardBroadcast(&canard, UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_SIGNATURE, UAVCAN_DEBUG_KEYVALUE_DATA_TYPE_ID, &transfer_id, CANARD_TRANSFER_PRIORITY_LOWEST, msg_buf, sizeof(float)+name_len);
+}
+
+void uavcan_send_debug_logmessage(enum uavcan_loglevel_t log_level, const char* source, const char* text) {
+    uint8_t msg_buf[UAVCAN_DEBUG_LOGMESSAGE_MESSAGE_MAX_SIZE];
+
+    size_t source_len = strlen(source);
+    size_t text_len = strlen(text);
+
+    if (source_len > 31) {
+        source_len = 31;
+    }
+    if (text_len > 90) {
+        text_len = 90;
+    }
+
+    uint8_t source_len_uint8 = source_len;
+
+    canardEncodeScalar(msg_buf, 0, 3, &log_level);
+    canardEncodeScalar(msg_buf, 3, 5, &source_len_uint8);
+    memcpy(&msg_buf[1], source, source_len);
+    memcpy(&msg_buf[1+source_len], text, text_len);
+    uint8_t transfer_id;
+    canardBroadcast(&canard, UAVCAN_DEBUG_LOGMESSAGE_DATA_TYPE_SIGNATURE, UAVCAN_DEBUG_LOGMESSAGE_DATA_TYPE_ID, &transfer_id, CANARD_TRANSFER_PRIORITY_LOWEST, msg_buf, 1+source_len+text_len);
 }
 
 // Node ID allocation - implementation of http://uavcan.org/Specification/figures/dynamic_node_id_allocatee_algorithm.svg

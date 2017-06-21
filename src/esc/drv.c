@@ -225,28 +225,28 @@ void drv_print_faults(void) {
     reg_val = drv_read_register(0x1);
     for(i=0; i<=10; i++) {
         if ((reg_val&(1<<i)) != 0) {
-            uavcan_send_debug_key_value(drv_reg0x1_names[i], 1);
+            uavcan_send_debug_logmessage(UAVCAN_LOGLEVEL_ERROR, "", drv_reg0x1_names[i]);
         }
     }
 
     reg_val = drv_read_register(0x2);
     for(i=0; i<=10; i++) {
         if ((reg_val&(1<<i)) != 0) {
-            uavcan_send_debug_key_value(drv_reg0x2_names[i], 1);
+            uavcan_send_debug_logmessage(UAVCAN_LOGLEVEL_ERROR, "", drv_reg0x2_names[i]);
         }
     }
 
     reg_val = drv_read_register(0x3);
     for(i=0; i<=10; i++) {
         if ((reg_val&(1<<i)) != 0) {
-            uavcan_send_debug_key_value(drv_reg0x3_names[i], 1);
+            uavcan_send_debug_logmessage(UAVCAN_LOGLEVEL_ERROR, "", drv_reg0x3_names[i]);
         }
     }
 
     reg_val = drv_read_register(0x4);
     for(i=0; i<=10; i++) {
         if ((reg_val&(1<<i)) != 0) {
-            uavcan_send_debug_key_value(drv_reg0x4_names[i], 1);
+            uavcan_send_debug_logmessage(UAVCAN_LOGLEVEL_ERROR, "", drv_reg0x4_names[i]);
         }
     }
 }
@@ -256,7 +256,7 @@ void drv_print_register(uint8_t reg)
     uint16_t val = drv_read_register(reg);
     char msg[32];
     snprintf(msg, 32, "0x%02X 0x%04X\n", reg, val);
-    uavcan_send_debug_key_value(msg, 0);
+    uavcan_send_debug_logmessage(UAVCAN_LOGLEVEL_DEBUG, "", msg);
 }
 
 bool drv_get_fault(void)
