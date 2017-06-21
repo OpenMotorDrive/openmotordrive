@@ -149,7 +149,7 @@ void drv_init(void)
     drv_write_register_bits(0xA,0,5,0b000000); // all CS amplifier gains = 10
     drv_write_register_bits(0xA,6,7,0b00);     // current shunt blanking time 00=0us 01=0.5us 10=2.5us 11=10us
     drv_write_register_bits(0xC,0,2,0b000);    // Latched shutdown when over-current detected
-    drv_write_register_bits(0xC,3,7,0b10011);  // VDS comparator threshold 0.576V
+    drv_write_register_bits(0xC,3,7,0b10101);  // VDS comparator threshold 0.730V
 
     drv_write_register_bits(0x9,1,1,0b1);      // clear faults
 }
