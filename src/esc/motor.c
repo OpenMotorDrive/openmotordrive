@@ -52,6 +52,7 @@ static struct {
     float ekf_u_noise;
     float ekf_omega_pnoise;
     float ekf_alpha_load_pnoise;
+    float current_limit;
 } params;
 
 static struct {
@@ -115,6 +116,7 @@ static void load_config(void)
     params.ekf_u_noise = *param_retrieve_by_name("ESC_EKF_VOLT_NSE");
     params.ekf_alpha_load_pnoise = *param_retrieve_by_name("ESC_EKF_ALPHA_LOAD_P_NSE");
     params.ekf_omega_pnoise = *param_retrieve_by_name("ESC_EKF_OMEGA_P_NSE");
+    params.current_limit = *param_retrieve_by_name("ESC_FOC_CURR_LIM");
 
     float foc_bandwidth_rads = 2.0f*M_PI_F*params.foc_bandwidth_hz;
 
@@ -284,7 +286,10 @@ void motor_set_duty_ref(float val)
 
 void motor_set_iq_ref(float iq_ref)
 {
-    iq_pid_param.i_ref = constrain_float(iq_ref,-45.0f,45.0f);
+    if (params.current_limit > 0) {
+        iq_ref = constrain_float(iq_ref,-params.current_limit,params.current_limit);
+    }
+    iq_pid_param.i_ref = iq_ref;
 }
 
 float motor_get_iq_meas(void)
