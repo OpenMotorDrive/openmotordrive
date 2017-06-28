@@ -17,6 +17,7 @@ BIN := build/bin/main.elf
 .PHONY: all
 all: $(LIBOPENCM3_DIR) $(BIN)
 
+.PRECIOUS: src/esc/ekf.c src/esc/ekf.h
 src/esc/ekf.h src/esc/ekf.c: tools/ekf/ekf_generator.py
 	python tools/ekf/ekf_generator.py src/esc/ekf.h src/esc/ekf.c
 
