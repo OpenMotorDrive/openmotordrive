@@ -17,22 +17,44 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <esc/timing.h>
-#include <esc/init.h>
-#include <esc/helpers.h>
-#include <esc/serial.h>
-#include <esc/param.h>
-#include <esc/adc.h>
-#include <esc/pwm.h>
-#include <esc/drv.h>
-#include <esc/inverter.h>
-#include <esc/motor.h>
-#include <esc/encoder.h>
-#include <esc/can.h>
-#include <esc/semihost_debug.h>
-#include <esc/uavcan.h>
+#include <common/timing.h>
+#include <common/init.h>
+#include <common/helpers.h>
+#include <common/shared_app_descriptor.h>
+#include "serial.h"
+#include "param.h"
+#include "adc.h"
+#include "pwm.h"
+#include "drv.h"
+#include "inverter.h"
+#include "motor.h"
+#include "encoder.h"
+#include <common/can.h>
+#include "uavcan.h"
 #include <stdio.h>
 #include <libopencm3/cm3/scb.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/spi.h>
+
+static volatile const struct shared_app_parameters_s shared_app_parameters __attribute__((section(".app_descriptor"),used)) = {
+    .boot_delay_sec = 5,
+    .canbus_disable_auto_baud = true,
+    .canbus_baudrate = 1000000,
+    .canbus_local_node_id = 0
+};
+
+static volatile const struct shared_app_descriptor_s shared_app_descriptor __attribute__((section(".app_descriptor"),used)) = {
+    .signature = SHARED_APP_DESCRIPTOR_SIGNATURE,
+    .image_crc = 0,
+    .image_size = 0,
+    .vcs_commit = GIT_HASH,
+    .major_version = 1,
+    .minor_version = 0,
+    .parameters_fmt = SHARED_APP_PARAMETERS_FMT,
+    .parameters_ignore_crc64 = true,
+    .parameters = {&shared_app_parameters, 0}
+};
 
 static bool restart_req = false;
 static uint32_t restart_req_us = 0;
@@ -48,6 +70,36 @@ static uint32_t tbegin_us;
 static bool waiting_to_start = false;
 static bool started = false;
 static float t_max = 20.0f;
+
+static void spi_init(void)
+{
+    rcc_periph_clock_enable(RCC_GPIOA);
+    rcc_periph_clock_enable(RCC_GPIOB);
+    rcc_periph_clock_enable(RCC_SPI3);
+
+    gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO5); // MA700 CS
+    gpio_mode_setup(GPIOB, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO0); // DRV CS
+    gpio_set(GPIOA, GPIO5); // MA700 CS up
+    gpio_set(GPIOB, GPIO0); // DRV CS up
+
+    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO4|GPIO5); // MISO,MOSI
+    gpio_mode_setup(GPIOB, GPIO_MODE_AF, GPIO_PUPD_PULLUP, GPIO3); // SCK
+    gpio_set_af(GPIOB, GPIO_AF6, GPIO3|GPIO4|GPIO5);
+
+    spi_set_baudrate_prescaler(SPI3, SPI_CR1_BR_FPCLK_DIV_4); // 18MHz
+    spi_set_clock_polarity_1(SPI3);
+    spi_set_clock_phase_1(SPI3);
+    spi_set_full_duplex_mode(SPI3);
+    spi_set_unidirectional_mode(SPI3);
+    spi_set_data_size(SPI3, SPI_CR2_DS_16BIT);
+    spi_send_msb_first(SPI3);
+    spi_enable_software_slave_management(SPI3);
+    spi_set_nss_high(SPI3);
+    spi_fifo_reception_threshold_16bit(SPI3);
+    spi_set_master_mode(SPI3);
+    spi_enable(SPI3);
+}
+
 
 static void test_steps_and_reversals_setup(void)
 {
@@ -131,66 +183,10 @@ static void uavcan_esc_loop(void)
     }
 }
 
-static uint8_t gimbal_axis;
-static uint32_t gimbal_last_command_us;
-static float gimbal_rate_error;
-static float gimbal_kP;
-static float gimbal_kI;
-static float gimbal_integrator;
-
-struct gimbal_rate_error_msg_s {
-    int16_t rate_error_int[3];
-};
-
-static void gimbal_handle_canbus_msg(struct canbus_msg msg)
-{
-    if (msg.id == 42 && msg.dlc == sizeof(struct gimbal_rate_error_msg_s)) {
-        struct gimbal_rate_error_msg_s* msg_decoded = (struct gimbal_rate_error_msg_s*)msg.data;
-        gimbal_last_command_us = micros();
-        gimbal_rate_error = ((float)msg_decoded->rate_error_int[gimbal_axis])*500.0/32767.0;
-
-        // respond with joint angle
-        float joint_angle = encoder_get_angle_rad();
-        struct canbus_msg resp_msg;
-        resp_msg.id = 50+gimbal_axis;
-        resp_msg.ide = false;
-        resp_msg.rtr = false;
-        memcpy(resp_msg.data, &joint_angle, sizeof(joint_angle));
-        resp_msg.dlc = sizeof(joint_angle);
-    }
-}
-
-static void gimbal_setup(void)
-{
-    gimbal_axis = (uint8_t)*param_retrieve_by_name("GIMBAL_AXIS");
-    gimbal_kP = *param_retrieve_by_name("GIMBAL_K_P");
-    gimbal_kI = *param_retrieve_by_name("GIMBAL_K_I");
-
-    uavcan_set_unhandled_can_frame_cb(gimbal_handle_canbus_msg);
-}
-
-static void gimbal_loop(void)
-{
-    uint32_t tnow_us = micros();
-
-    if (tnow_us-gimbal_last_command_us > 0.5*1e6) {
-        motor_set_mode(MOTOR_MODE_DISABLED);
-    } else {
-        motor_set_mode(MOTOR_MODE_FOC_CURRENT);
-
-        if (!motor_get_saturation_flag()) {
-            gimbal_integrator += gimbal_kI*gimbal_rate_error*motor_get_dt();
-        }
-
-        motor_set_iq_ref(gimbal_kP * gimbal_rate_error + gimbal_integrator);
-    }
-}
-
 enum program_t {
     PROGRAM_NONE = 0,
     PROGRAM_UAVCAN_ESC,
     PROGRAM_ENCODER_CALIBRATION,
-    PROGRAM_GIMBAL,
 };
 
 static enum program_t program_selected;
@@ -210,9 +206,6 @@ static void setup(void)
             motor_set_mode(MOTOR_MODE_ENCODER_CALIBRATION);
             *program_sel_param = PROGRAM_NONE;
             break;
-        case PROGRAM_GIMBAL:
-            gimbal_setup();
-            break;
     }
 }
 
@@ -226,9 +219,6 @@ static void loop(void)
             break;
         case PROGRAM_ENCODER_CALIBRATION:
             break;
-        case PROGRAM_GIMBAL:
-            gimbal_loop();
-            break;
     }
 
 }
@@ -237,11 +227,11 @@ int main(void)
 {
     uint32_t last_print_ms = 0;
 
-    clock_init();
+    init_clock();
     timing_init();
     param_init();
     serial_init();
-    canbus_init();
+    canbus_init(1000000, false);
     uavcan_init();
     spi_init();
     drv_init();

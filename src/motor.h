@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <esc/adc.h>
+#include "adc.h"
 
 enum motor_mode_t {
     MOTOR_MODE_DISABLED = 0,

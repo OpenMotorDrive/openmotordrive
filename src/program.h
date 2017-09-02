@@ -13,10 +13,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #pragma once
 
-#include <stdbool.h>
+#include "adc.h"
 
-bool semihost_debug_enabled(void);
-void semihost_debug_printf(const char *fmt, ...);
+void program_init(void);
+void program_event_adc_sample(float dt, struct adc_sample_s* adc_sample);

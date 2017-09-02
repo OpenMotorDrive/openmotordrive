@@ -1,6 +1,12 @@
-[submodule "libopencm3"]
-	path = submodules/libopencm3
-	url = git@github.com:jschall/libopencm3.git
-[submodule "submodules/libcanard"]
-	path = submodules/libcanard
-	url = git@github.com:UAVCAN/libcanard.git
+[submodule "omd_common"]
+	path = modules/omd_common
+	url = git@github.com:OpenMotorDrive/omd_common.git
+[submodule "modules/libopencm3"]
+	path = modules/libopencm3
+	url = git@github.com:OpenMotorDrive/libopencm3.git
+[submodule "modules/libcanard"]
+	path = modules/libcanard
+	url = git@github.com:OpenMotorDrive/libcanard.git
+[submodule "modules/bootloader"]
+	path = modules/bootloader
+	url = git@github.com:OpenMotorDrive/bootloader.git

@@ -13,7 +13,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <esc/ringbuf.h>
+#include "ringbuf.h"
 
 bool ringbuf_push(volatile struct ringbuf_t* b, char value)
 {

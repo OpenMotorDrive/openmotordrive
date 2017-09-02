@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <esc/can.h>
+#include <common/can.h>
 
 enum uavcan_loglevel_t {
     UAVCAN_LOGLEVEL_DEBUG = 0,

@@ -5,8 +5,8 @@ from sympy import *
 #freq = 91.48
 
 # enroute
-Vnl = 1.8963
-freq = 89.32
+Vnl = .7531
+freq = 101.1
 
 omega = freq * 2 * pi
 

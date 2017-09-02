@@ -13,20 +13,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <esc/motor.h>
+#include "motor.h"
 
 #include <string.h>
-#include <esc/helpers.h>
-#include <esc/inverter.h>
-#include <esc/encoder.h>
-#include <esc/timing.h>
-#include <esc/curr_pid.h>
-#include <esc/serial.h>
-#include <esc/semihost_debug.h>
-#include <esc/slip.h>
-#include <esc/param.h>
+#include <common/helpers.h>
+#include "inverter.h"
+#include "encoder.h"
+#include <common/timing.h>
+#include "curr_pid.h"
+#include "serial.h"
+#include "slip.h"
+#include "param.h"
 
-#include <esc/uavcan.h>
+#include "uavcan.h"
 
 #include "ekf.h"
 

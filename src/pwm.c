@@ -13,14 +13,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <esc/pwm.h>
-#include <esc/helpers.h>
+#include "pwm.h"
+#include <common/helpers.h>
 
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/cm3/nvic.h>
-#include <esc/serial.h>
+#include "serial.h"
 
 #define TIM_CCMR3(tim_base)          MMIO32((tim_base) + 0x54)
 #define TIM1_CCMR3                   TIM_CCMR3(TIM1)

@@ -1,11 +1,11 @@
-#include <esc/inverter.h>
-#include <esc/helpers.h>
-#include <esc/pwm.h>
-#include <esc/timing.h>
-#include <esc/adc.h>
-#include <esc/drv.h>
-#include <esc/param.h>
-#include <esc/serial.h>
+#include "inverter.h"
+#include <common/helpers.h>
+#include "pwm.h"
+#include <common/timing.h>
+#include "adc.h"
+#include "drv.h"
+#include "param.h"
+#include "serial.h"
 
 #include <string.h>
 #include <stdbool.h>

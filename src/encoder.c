@@ -13,9 +13,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <esc/encoder.h>
-#include <esc/timing.h>
-#include <esc/helpers.h>
+#include "encoder.h"
+#include <common/timing.h>
+#include <common/helpers.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 #include <math.h>
