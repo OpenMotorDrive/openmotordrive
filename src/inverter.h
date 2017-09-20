@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 struct inverter_sense_data_s {
     uint32_t t_us;
@@ -17,3 +18,4 @@ void inverter_get_alpha_beta_output_voltages(float* u_alpha, float* u_beta);
 void inverter_disable_output(void);
 volatile struct inverter_sense_data_s* inverter_get_sense_data(void);
 float inverter_get_sense_data_sample_period(void);
+void inverter_set_reverse(bool val);

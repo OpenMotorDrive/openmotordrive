@@ -142,6 +142,7 @@ static void retrieve_encoder_measurement(void)
 void motor_init(void)
 {
     load_config();
+    inverter_set_reverse(params.reverse);
 
     // initialize encoder filter states
     retrieve_encoder_measurement();
@@ -187,7 +188,11 @@ bool motor_update(void)
     }
 
     // Transform inverter measurements to 2-phase equivalent values in stationary (alpha-beta) and synchronous (d-q) frames
-    transform_a_b_c_to_alpha_beta(inverter_sense_data.i_a, inverter_sense_data.i_b, inverter_sense_data.i_c, &motor_state.i_alpha, &motor_state.i_beta);
+    if (!params.reverse) {
+        transform_a_b_c_to_alpha_beta(inverter_sense_data.i_a, inverter_sense_data.i_b, inverter_sense_data.i_c, &motor_state.i_alpha, &motor_state.i_beta);
+    } else {
+        transform_a_b_c_to_alpha_beta(inverter_sense_data.i_a, inverter_sense_data.i_c, inverter_sense_data.i_b, &motor_state.i_alpha, &motor_state.i_beta);
+    }
     transform_alpha_beta_to_d_q(motor_state.elec_theta, motor_state.i_alpha, motor_state.i_beta, &motor_state.i_d, &motor_state.i_q);
 
     inverter_get_alpha_beta_output_voltages(&prev_u_alpha, &prev_u_beta);
@@ -386,7 +391,10 @@ static void run_encoder_calibration(void)
                 params.mot_n_pole_pairs = (uint8_t)roundf((M_PI_F)/fabsf(angle_diff));
 
                 // rotating the field in the positive direction should have rotated the encoder in the positive direction too
-                params.reverse = angle_diff < 0;
+                if (angle_diff < 0) {
+                    params.reverse = !params.reverse;
+                    inverter_set_reverse(params.reverse);
+                }
 
                 encoder_cal_state.step = 2;
             }

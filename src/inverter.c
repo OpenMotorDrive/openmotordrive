@@ -8,7 +8,6 @@
 #include "serial.h"
 
 #include <string.h>
-#include <stdbool.h>
 
 // double-buffered phase output
 static volatile uint8_t phase_output_idx = 0;
@@ -26,6 +25,7 @@ static volatile struct inverter_sense_data_s sense_data[2];
 
 // current sense amplifier calibration
 static float csa_cal[3];
+static bool reverse;
 
 // configuration parameters
 static struct {
@@ -63,6 +63,10 @@ void inverter_init(void)
     csa_cal[0] /= 1000;
     csa_cal[1] /= 1000;
     csa_cal[2] /= 1000;
+}
+
+void inverter_set_reverse(bool val) {
+    reverse = val;
 }
 
 void inverter_set_alpha_beta_output_voltages(uint32_t t_us, float u_alpha, float u_beta, float omega)
@@ -169,7 +173,11 @@ static void new_adc_data(void)
     // Per http://www.embedded.com/design/real-world-applications/4441150/2/Painless-MCU-implementation-of-space-vector-modulation-for-electric-motor-systems
     // Does not overmodulate, provided the input magnitude is <= 1.0/sqrt(2)
     float duty_a, duty_b, duty_c, neutral;
-    transform_alpha_beta_to_a_b_c(alpha, beta, &duty_a, &duty_b, &duty_c);
+    if (!reverse) {
+        transform_alpha_beta_to_a_b_c(alpha, beta, &duty_a, &duty_b, &duty_c);
+    } else {
+        transform_alpha_beta_to_a_b_c(alpha, beta, &duty_a, &duty_c, &duty_b);
+    }
 
     // Correct voltages for dead-time
     const float deadtime_correction = params.pwm_deadtime/(3*pwm_get_period());
